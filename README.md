@@ -46,12 +46,20 @@ F:5,R:-30.12,P:-2.24,H:100.00,G:0.81,Y:-0.47,A:2173.64,B:1021.22,T:19.73
 ```
 
 F - Flags => 1 - Gyro Bias Valid | 2 Accel Calibration Valid | 4 Compass Calibration Valid
+
 R - Roll in radians
+
 P - Pitch in radians
+
 H - Compass Heading in degrees 0-North through 359
+
 G - Vertical Accelleration
+
 A - Indicated pitot pressure ADC output (Kalman filter on raw output)
+
 B - Barometeric pressure, in millibars
+
 T - Board Temperature
+
 
 All numbers except 'F' are formatted as floating point
