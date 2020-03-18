@@ -2,6 +2,7 @@
 Better primary flight display - intended for use with [RTIMULib2-Arduino](https://github.com/avpripri/RTIMULib2)
  ADHRS + Pressure Sensors
 
+![backflip](https://github.com/avpripri/avpripri/blob/master/resources/betterflight2.jpg)
 
 # Background
 This is a DirectX Windows application designed to be the best "split-window" companion with an electronic flight bag or similar flight/navigation computer.   It's designed to be a better primary flight display system period.
