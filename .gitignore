@@ -1,0 +1,8 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/BackFlip/.vs/BackFlip/v16/Server/sqlite3
+/BackFlip/bin/Debug
+/BackFlip/obj/Debug
+/BackFlip/packages
