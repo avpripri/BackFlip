@@ -13,22 +13,21 @@ Classif EFIS designs are very "busy".  There's a lot of data in too small a scre
 
 # Brutal Simplicity
 
-You don't actualy... NEED all that information all the time.  Airspeed, altitude, heading all great to know... but they don't mean your "ok" they are numbers, ultimately just data points, a well qualified, rested and  aware pilot has to decode into the current situation.  The true "information" the pilot _MUST_ have should blend this into the situation and give you one-glance display that means... we're good.  What is that information...
+You don't actualy... NEED all that information all the time.  Airspeed, altitude, heading all great to know... but they don't mean your "ok" they are numbers, ultimately just data points.  A well qualified, rested and aware pilot is expert at decode these values and integrating that into "flying the airplane".  But I propose an improved visualization that extracts that data and only present what the pilot needs at a glance.  The following are critical to "flying the airplane".
 
 * Angle of Attack
 * Attitude
 * Slip / Skip
-* Course
+
+# Tactical, not strategic
+
+This display is 100% tachtical... what do I need to _DO_ to fly the airplane right in this moment.  Strategic flying folds in more information for navigation, traffic and weather.  I argue that should go on another visualization dedicated to that "bigger picture" purpose.
 
 ## Angle of Attack / Attitude / Slip-Skid
 
 I combined these three into one simple visualization, the "Attitude of Attack Chevron"  and it is the most important instrument in the plane.
 
 The center triangle represents the nose of the aircraft.  The chevrons go from highest AoA above on top as "Red", to zero AoA "Blue" on the bottom.  For any given phase of flight the "target" AoA is calculated for you.  For powered takeoff target AoA would correlate with Vx-speed bellow 400' and Vy above until engine temperature dictates higher speeds.  In unaccellerated level flight on a glider would correlate to the McCready speed-to-fly.  For a cruising powered aircraft, it correlates to Best Range Speed in cruise.  For landing this AoA target transitions to Maximum safe manuevering angle-of-attack (based on minimum safe speed) as you approach the runway environment.
-
-## Course
-
-Hoops really are the most obvious course depiction.  They don't require any translation, you mind knows exactly what to do at a glance.  I will admit I turned them off on my G3X because I just got bored of seeing them.  So for extended cruise the distance would spread out as far a one mile which reduces tedium.
 
 # Backflip IMU
 
