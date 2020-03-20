@@ -9,11 +9,11 @@ This is a DirectX Windows application designed to be the best "split-window" com
 
 # Visualization
 
-Classif EFIS designs are very "busy".  There's a lot of data in too small a screen.  The general "situational awareness" that comes with an EFIS is spectacular, but EFIS' come with a bad side-effect.  Even if you fly with them often, it's difficult to "at-a-glance" on a primary flight display _KNOW_ you're flying fine.  I took that and tried to make a better display.
+Classic EFIS designs are very "busy".  There's a lot of data in too small a screen.  The general "situational awareness" that comes with an EFIS is spectacular, but EFIS' come with a bad side-effect.  Even if you fly with them often, it's difficult to "at-a-glance" on a primary flight display _KNOW_ you're flying fine.  I took that and tried to make a better display.
 
 # Brutal Simplicity
 
-You don't actualy... NEED all that information all the time.  Airspeed, altitude, heading all great to know... but they don't mean your "ok" they are numbers, ultimately just data points.  A well qualified, rested and aware pilot is expert at decode these values and integrating that into "flying the airplane".  But I propose an improved visualization that extracts that data and only present what the pilot needs at a glance.  The following are critical to "flying the airplane".
+You don't actually... NEED all that information all the time.  Airspeed, altitude, heading all great to know... but they don't mean your flying safe, they are just numbers, ultimately just data points.  A well qualified, rested and aware pilot is expert at decode these values and integrating that into "flying the air plane".  But I propose an improved visualization that extracts that data and only present what the pilot needs at a glance.  The following are critical to "flying the air plane".
 
 * Angle of Attack
 * Attitude
@@ -21,13 +21,13 @@ You don't actualy... NEED all that information all the time.  Airspeed, altitude
 
 # Tactical, not strategic
 
-This display is 100% tachtical... what do I need to _DO_ to fly the airplane right in this moment.  Strategic flying folds in more information for navigation, traffic and weather.  I argue that should go on another visualization dedicated to that "bigger picture" purpose.
+This display is 100% tactical... what do I need to _DO_ to fly the air plane right in this moment.  Strategic flying folds in more information for navigation, traffic and weather.  I argue that should go on another visualization dedicated to that "bigger picture" purpose.
 
 ## Angle of Attack / Attitude / Slip-Skid
 
 I combined these three into one simple visualization, the "Attitude of Attack Chevron"  and it is the most important instrument in the plane.
 
-The center triangle represents the nose of the aircraft.  The chevrons go from highest AoA above on top as "Red", to zero AoA "Blue" on the bottom.  For any given phase of flight the "target" AoA is calculated for you.  For powered takeoff target AoA would correlate with Vx-speed bellow 400' and Vy above until engine temperature dictates higher speeds.  In unaccellerated level flight on a glider would correlate to the McCready speed-to-fly.  For a cruising powered aircraft, it correlates to Best Range Speed in cruise.  For landing this AoA target transitions to Maximum safe manuevering angle-of-attack (based on minimum safe speed) as you approach the runway environment.
+The center triangle represents the nose of the aircraft.  The chevrons go from highest AoA above on top as "Red", to zero AoA "Blue" on the bottom.  For any given phase of flight the "target" AoA is calculated for you.  For powered take off target AoA would correlate with Vx-speed bellow 400' and Vy above until engine temperature dictates higher speeds.  In unaccelerated level flight on a glider would correlate to the McCready speed-to-fly.  For a cruising powered aircraft, it correlates to Best Range Speed in cruise.  For landing this AoA target transitions to Maximum safe manoeuvring angle-of-attack (based on minimum safe speed) as you approach the runway environment.
 
 # Backflip IMU
 
@@ -53,11 +53,11 @@ P - Pitch in radians
 
 H - Compass Heading in degrees 0-North through 359
 
-G - Vertical Accelleration
+G - Vertical Acceleration
 
 A - Indicated pitot pressure ADC output (Kalman filter on raw output)
 
-B - Barometeric pressure, in millibars
+B - Barometric pressure, in millibars
 
 T - Board Temperature
 
