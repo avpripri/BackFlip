@@ -75,7 +75,7 @@ namespace MiniCube
             var context = device.ImmediateContext;
 
             // Ignore all windows events
-            var factory = swapChain.GetParent<Factory>();
+            var factory = swapChain.GetParent<SharpDX.DXGI.Factory>();
             factory.MakeWindowAssociation(form.Handle, WindowAssociationFlags.IgnoreAll);
 
             // Compile Vertex and Pixel shaders

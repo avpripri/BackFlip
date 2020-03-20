@@ -17,7 +17,7 @@ namespace BackFlip
         {
             _serialPort = new SerialPort(comPort, baudRate);
 
-            try { _serialPort.Open(); } catch (System.IO.IOException x) { }
+            try { _serialPort.Open(); } catch (System.IO.IOException) { }
         }
 
         public const char Flags = 'F';
