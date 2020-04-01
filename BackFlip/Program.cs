@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2013 SharpDX - Alexandre Mutel
+﻿// Copyright (c) 2010-2013 SharpDX - Alexandre Mutel
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -17,269 +17,241 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
+
 using System;
-using System.Diagnostics;
 using System.Linq;
-using System.Windows.Forms;
 using BackFlip;
 using SharpDX;
 using SharpDX.D3DCompiler;
-using SharpDX.Direct3D;
+using SharpDX.Direct2D1;
 using SharpDX.Direct3D11;
 using SharpDX.DirectWrite;
 using SharpDX.DXGI;
-using SharpDX.Windows;
-using Buffer = SharpDX.Direct3D11.Buffer;
-using Device = SharpDX.Direct3D11.Device;
+using SharpDX.Samples;
+using TextAntialiasMode = SharpDX.Direct2D1.TextAntialiasMode;
+using System.Windows.Forms;
+using System.IO;
 
-namespace MiniCube
+namespace SimpleHelloWorld
 {
+
     /// <summary>
-    /// SharpDX MiniCube Direct3D 11 Sample
+    /// Shows how to use DirectWrite to render simple text.
+    /// Port of DirectWrite sample SimpleHelloWorld from Windows 7 SDK samples
+    /// http://msdn.microsoft.com/en-us/library/dd742738%28v=VS.85%29.aspx
     /// </summary>
-    internal static class Program
+    public class Program :  Direct2D1DemoApp
     {
-        static ADHRS adhrs = new ADHRS("COM5");
+        private Matrix view, proj;
+        SharpDX.Direct3D11.Buffer contantBuffer;
+        SharpDX.Direct3D11.DeviceContext context;
+        DepthStencilView depthView;
 
-        //      [STAThread]
-        private static void Main()
+
+        TextFormat TextFormatCenter, TextFormatLeft, TextFormatRight, TextFormatRightSmall;
+
+        public RectangleF ClientRectangle { get; private set; }
+        protected override void Initialize(DemoConfiguration demoConfiguration)
         {
-            var seaLevelMp = 1021.1f; // stdPres = 1013.25f
+            base.Initialize(demoConfiguration);
 
-            var form = new RenderForm("SharpDX - MiniCube Direct3D11 Sample");
+            var config = File.ReadAllLines("config.txt").Select(l => l.Split('=')).ToDictionary(k => k[0], v => string.Join("=", v.Skip(1)));
+            localBaro = int.Parse(config["localBaro"]);
+            comPort = config["comPort"];
+            baudRate = int.Parse(config["baudRate"]);
+            mbOffset = float.Parse(config["mbOffset"]);
 
-            // SwapChain description
-            var desc = new SwapChainDescription()
+            UpdateBaro();
+
+            adhrs = new ADHRS(comPort, baudRate);
+
+            // Initialize a TextFormat
+            TextFormatCenter = new TextFormat(FactoryDWrite, "Calibri", 64)
             {
-                BufferCount = 1,
-                ModeDescription =
-                    new ModeDescription(form.ClientSize.Width, form.ClientSize.Height,
-                                        new Rational(60, 1), Format.R8G8B8A8_UNorm),
-                IsWindowed = true,
-                OutputHandle = form.Handle,
-                SampleDescription = new SampleDescription(1, 0),
-                SwapEffect = SwapEffect.Discard,
-                Usage = Usage.RenderTargetOutput
+                TextAlignment = TextAlignment.Center,
+                ParagraphAlignment = ParagraphAlignment.Center
+            };
+            TextFormatLeft = new TextFormat(FactoryDWrite, "Calibri", 64)
+            {
+                TextAlignment = TextAlignment.Leading,
+                ParagraphAlignment = ParagraphAlignment.Center
+            };
+            TextFormatRight = new TextFormat(FactoryDWrite, "Calibri", 64)
+            {
+                TextAlignment = TextAlignment.Trailing,
+                ParagraphAlignment = ParagraphAlignment.Center
+            };
+            TextFormatRightSmall = new TextFormat(FactoryDWrite, "Calibri", 48)
+            {
+                TextAlignment = TextAlignment.Trailing,
+                ParagraphAlignment = ParagraphAlignment.Center
             };
 
-            // Used for debugging dispose object references
-            // Configuration.EnableObjectTracking = true;
+            RenderTarget2D.TextAntialiasMode = TextAntialiasMode.Cleartype;
 
-            // Disable throws on shader compilation errors
-            //Configuration.ThrowOnShaderCompileError = false;
+            ClientRectangle = new RectangleF(0, 0, demoConfiguration.Width, demoConfiguration.Height);
 
-            // Create Device and SwapChain
-            Device device;
-            SwapChain swapChain;
-            Device.CreateWithSwapChain(DriverType.Hardware, DeviceCreationFlags.None, desc, out device, out swapChain);
-            var context = device.ImmediateContext;
+            SceneColorBrush.Color = Color.LightGray;
+            baroColorBrush = new SolidColorBrush(RenderTarget2D, Color.DarkGray);
+            errorBrush = new SolidColorBrush(RenderTarget2D, Color.Red);
 
-            // Ignore all windows events
-            var factory = swapChain.GetParent<SharpDX.DXGI.Factory>();
-            factory.MakeWindowAssociation(form.Handle, WindowAssociationFlags.IgnoreAll);
+
+            // Initialize Chevrons
 
             // Compile Vertex and Pixel shaders
-            var vertexShaderByteCode = ShaderBytecode.CompileFromFile("MiniCube.fx", "VS", "vs_4_0");
-            var vertexShader = new VertexShader(device, vertexShaderByteCode);
+            var vertexShaderByteCode = ShaderBytecode.CompileFromFile("BackFlip.fx", "VS", "vs_4_0");
+            var vertexShader = new VertexShader(Device, vertexShaderByteCode);
 
-            var pixelShaderByteCode = ShaderBytecode.CompileFromFile("MiniCube.fx", "PS", "ps_4_0");
-            var pixelShader = new PixelShader(device, pixelShaderByteCode);
+            var pixelShaderByteCode = ShaderBytecode.CompileFromFile("BackFlip.fx", "PS", "ps_4_0");
+            var pixelShader = new PixelShader(Device, pixelShaderByteCode);
 
             var signature = ShaderSignature.GetInputSignature(vertexShaderByteCode);
             // Layout from VertexShader input signature
-            var layout = new InputLayout(device, signature, new[]
+            var layout = new InputLayout(Device, signature, new[]
                     {
-                        new InputElement("POSITION", 0, Format.R32G32B32A32_Float, 0, 0),
-                        new InputElement("COLOR", 0, Format.R32G32B32A32_Float, 16, 0)
+                        new SharpDX.Direct3D11.InputElement("POSITION", 0, Format.R32G32B32A32_Float, 0, 0),
+                        new SharpDX.Direct3D11.InputElement("COLOR", 0, Format.R32G32B32A32_Float, 16, 0)
                     });
 
-            Chevrons3 chevrons = new Chevrons3()
+            // Instantiate Vertex buiffer from vertex data
+            var vertices = SharpDX.Direct3D11.Buffer.Create(Device, BindFlags.VertexBuffer, new BackFlip.Chevrons3()
             {
                 Size = new Size2F(1f, 2f),
                 alphaMax = 15,
                 alphaTarget = 10
-            };
-
-            var verts =  chevrons.Make();
-
-            // Instantiate Vertex buiffer from vertex data
-            var vertices = Buffer.Create(device, BindFlags.VertexBuffer, verts);
+            }.Make());
 
             // Create Constant Buffer
-            var contantBuffer = new Buffer(device, Utilities.SizeOf<Matrix>(), ResourceUsage.Default, BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
+            contantBuffer = new SharpDX.Direct3D11.Buffer(Device, Utilities.SizeOf<Matrix>(), ResourceUsage.Default, BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
+
+            context = Device.ImmediateContext;
 
             // Prepare All the stages
             context.InputAssembler.InputLayout = layout;
-            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
+            context.InputAssembler.PrimitiveTopology = SharpDX.Direct3D.PrimitiveTopology.TriangleList;
             context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(vertices, Utilities.SizeOf<Vector4>() * 2, 0));
             context.VertexShader.SetConstantBuffer(0, contantBuffer);
             context.VertexShader.Set(vertexShader);
             context.PixelShader.Set(pixelShader);
 
             // Prepare matrices
-            var view = Matrix.LookAtLH(new Vector3(0, 0, -5), new Vector3(0, 0, 0), Vector3.UnitY);
-            Matrix proj = Matrix.Identity;
+            view = Matrix.LookAtLH(new Vector3(0, 0, -5), new Vector3(0, 0, 0), Vector3.UnitY);
 
-            // Use clock
-            var clock = new Stopwatch();
-            clock.Start();
+            proj = Matrix.PerspectiveFovLH((float)Math.PI / 4.0f, demoConfiguration.Width / (float)demoConfiguration.Height, 0.1f, 100.0f);
+        }
 
-            // Declare texture for rendering
-            bool userResized = true;
-            Texture2D backBuffer = null;
-            RenderTargetView renderView = null;
-            Texture2D depthBuffer = null;
-            DepthStencilView depthView = null;
+        private void UpdateBaro()
+        {
+            seaLevelMp = localBaro * 1017.25f / 2992f;
+        }
 
-            // Setup handler on resize form
-            form.UserResized += (sender, args) => userResized = true;
+        private void SaveConfig()
+        {
+            File.WriteAllLines("config.txt", new []{ $"localBaro={localBaro}", $"comPort={comPort}", $"baudRate={baudRate}", $"mbOffset={mbOffset}"});
+        }
 
-            // Setup full screen mode change F5 (Full) F4 (Window)
-            form.KeyUp += (sender, args) =>
-                {
-                    if (args.KeyCode == Keys.F11)
-                        swapChain.SetFullscreenState(true, null);
-                    else if (args.KeyCode == Keys.Escape)
-                        form.Close();
-                };
+        string comPort;
+        int baudRate;
+        static ADHRS adhrs;
+        string airspeed = "0";
+        int altitude = 0;
+        string heading = "352";
+        int localBaro = 3004;
+        float seaLevelMp; // stdPres = 1013.25f
+        float roll = 0f;
+        float pitch = 0f;
+        float dp_Coef = 11.0f; // <-- calibrate this
+        float AIS_Baseline = 2178;
+        // House altitude 892.7 '
+        SolidColorBrush baroColorBrush;
+        SolidColorBrush errorBrush;
+        DateTime lastRead = DateTime.Now;
+        DateTime lastFrame = DateTime.Now;
+        float mbOffset = 0f;
 
-            var roll = 0f;
-            var pitch = 0f;
+        const int msPerFrame = (1000/40);
 
-            //// Initialize the Font
-            //FontDescription fontDescription = new FontDescription()
-            //{
-            //    Height = 72,
-            //    Italic = false,
-            //    CharacterSet = FontCharacterSet.Ansi,
-            //    FaceName = "Arial",
-            //    MipLevels = 0,
-            //    OutputPrecision = FontPrecision.TrueType,
-            //    PitchAndFamily = FontPitchAndFamily.Default,
-            //    Quality = FontQuality.ClearType,
-            //    Weight = FontWeight.Bold
-            //};
+        protected override void Draw(DemoTime time)
+        {
+            var now = DateTime.Now;
+            // Don't over-render, it costs CPU and that's energy
+            var delta = (int)(now-lastFrame).TotalMilliseconds;
+            if (delta < msPerFrame)
+                System.Threading.Thread.Sleep(msPerFrame-delta);
+            lastFrame = now;
 
-            //var font = new Font(device, fontDescription);
+            base.Draw(time);
 
-            // Initialize a TextFormat
-            //var TextFormat = new TextFormat(FactoryDWrite, "Calibri", 128) { TextAlignment = TextAlignment.Center, ParagraphAlignment = ParagraphAlignment.Center };
+            // Update WorldViewProj Matrix
+            var viewProj = Matrix.Multiply(view, proj);
+            var worldViewProj = Matrix.RotationZ(roll) * viewProj;
 
-            //RenderTarget2D.TextAntialiasMode = TextAntialiasMode.Cleartype;
+            // Matrix.RotationX(time) * Matrix.RotationY(time * 2) * Matrix.RotationZ(time * .7f)
+            worldViewProj.Transpose();
+            context.UpdateSubresource(ref worldViewProj, contantBuffer);
 
-            //// Initialize a TextLayout
-            //TextLayout = new TextLayout(FactoryDWrite, "SharpDX D2D1 - DWrite", TextFormat, demoConfiguration.Width, demoConfiguration.Height);
-
-
-            var airspeed = "0";
-            var altitude = "920";
-            var heading = "352";
-
-            // Main loop
-            RenderLoop.Run(form, () =>
+            var attitude = adhrs.RawRead();
+            if (attitude.Count() > 0)
             {
-                // If Form resized
-                if (userResized)
-                {
-                    // Dispose all previous allocated resources
-                    Utilities.Dispose(ref backBuffer);
-                    Utilities.Dispose(ref renderView);
-                    Utilities.Dispose(ref depthBuffer);
-                    Utilities.Dispose(ref depthView);
+                roll = attitude[ADHRS.Roll];
+                altitude = (10 * (Altitude(attitude[ADHRS.Baro]-mbOffset, seaLevelMp) / 10));
+                heading = (5 * ((int)attitude[ADHRS.Heading] / 5)).ToString();
+                //pitch = -10 * ahrsLine[ADHRS.Pitch]; 
+                var dp = dp_Coef * (attitude[ADHRS.IAS] - AIS_Baseline);
+                var speed = (int)Math.Sqrt(Math.Max(0, dp));
+                airspeed = (speed < 30 ? 0 : speed).ToString();
+                lastRead = DateTime.Now;
+            }
 
-                    // Resize the backbuffer
-                    swapChain.ResizeBuffers(desc.BufferCount, form.ClientSize.Width, form.ClientSize.Height, Format.Unknown, SwapChainFlags.None);
+            if ((DateTime.Now - lastRead).TotalSeconds > 1.2)
+            {
+                RenderTarget2D.DrawLine(new Vector2(0, 0), new Vector2(ClientRectangle.Width, ClientRectangle.Height), errorBrush, 3.0f);
+                RenderTarget2D.DrawLine(new Vector2(ClientRectangle.Width, 0), new Vector2(0, ClientRectangle.Height), errorBrush, 3.0f);
+            }
 
-                    // Get the backbuffer from the swapchain
-                    backBuffer = Texture2D.FromSwapChain<Texture2D>(swapChain, 0);
+            // Draw the cube
+            context.Draw(36, 0);
 
-                    // Renderview on the backbuffer
-                    renderView = new RenderTargetView(device, backBuffer);
+            RenderTarget2D.DrawText(heading, TextFormatCenter, new RectangleF (0,0,ClientRectangle.Width,100), SceneColorBrush);
+            RenderTarget2D.DrawText((altitude/100).ToString(), TextFormatRight, new RectangleF(0, 5, ClientRectangle.Width-50, ClientRectangle.Height), SceneColorBrush);
+            RenderTarget2D.DrawText((altitude%100).ToString().PadLeft(2, '0'), TextFormatRightSmall, ClientRectangle, SceneColorBrush);
 
-                    // Create the depth buffer
-                    depthBuffer = new Texture2D(device, new Texture2DDescription()
-                    {
-                        Format = Format.D32_Float_S8X24_UInt,
-                        ArraySize = 1,
-                        MipLevels = 1,
-                        Width = form.ClientSize.Width,
-                        Height = form.ClientSize.Height,
-                        SampleDescription = new SampleDescription(1, 0),
-                        Usage = ResourceUsage.Default,
-                        BindFlags = BindFlags.DepthStencil,
-                        CpuAccessFlags = CpuAccessFlags.None,
-                        OptionFlags = ResourceOptionFlags.None
-                    });
+            RenderTarget2D.DrawText((localBaro/100f).ToString("0.00"), TextFormatRightSmall, new RectangleF(0, ClientRectangle.Height-200, ClientRectangle.Width, 200), baroColorBrush);
 
-                    // Create the depth buffer view
-                    depthView = new DepthStencilView(device, depthBuffer);
+            RenderTarget2D.DrawText(airspeed, TextFormatLeft, ClientRectangle, SceneColorBrush);
 
-                    // Setup targets and viewport for rendering
-                    context.Rasterizer.SetViewport(new Viewport(0, 0, form.ClientSize.Width, form.ClientSize.Height, 0.0f, 1.0f));
-                    context.OutputMerger.SetTargets(depthView, renderView);
+        }
 
-                    // Setup new projection matrix with correct aspect ratio
-                    proj = Matrix.PerspectiveFovLH((float)Math.PI / 4.0f, form.ClientSize.Width / (float)form.ClientSize.Height, 0.1f, 100.0f);
+        protected override void MouseClick(MouseEventArgs e)
+        {
+            base.MouseClick(e);
 
-                    // We are done resizing
-                    userResized = false;
-                }
+            if (e.X > ClientRectangle.Width*3/4)
+            {
+                if (e.Y > ClientRectangle.Height - 120)
+                    localBaro -= 1;
+                else
+                    localBaro += 1;
 
-                var time = clock.ElapsedMilliseconds / 1000.0f;
+                UpdateBaro();
+                SaveConfig();
+            }
+        }
 
-                var viewProj = Matrix.Multiply(view, proj);
+        private int Altitude(float pressure, float seaLevelMp)
+        {
+            return (int)(/* meters=> 44330*/ 145439.6f * (1.0 - Math.Pow(pressure / seaLevelMp, 0.1902949)));
+        }
 
-                // Clear views
-                context.ClearDepthStencilView(depthView, DepthStencilClearFlags.Depth, 1.0f, 0);
-                context.ClearRenderTargetView(renderView, Color.Black);
 
-                var attitude = adhrs.RawRead();
-
-                if (attitude.Count() > 0)
-                {
-                    roll = (float)(Math.PI * attitude[ADHRS.Roll] / -180.0);
-                    //altitude = (10 * (readAltitude(ahrsLine[ADHRS.Baro], seaLevelMp) / 10)).ToString();
-                    //heading = (5 * ((int)ahrsLine[ADHRS.Heading] / 5)).ToString();
-                    //pitch = -10 * ahrsLine[ADHRS.Pitch]; // * Math.PI / 180f;
-                }
-
-                // Update WorldViewProj Matrix
-                var worldViewProj = Matrix.RotationZ(roll) * viewProj;
-
-                // Matrix.RotationX(time) * Matrix.RotationY(time * 2) * Matrix.RotationZ(time * .7f)
-                worldViewProj.Transpose();
-                context.UpdateSubresource(ref worldViewProj, contantBuffer);
-
-                // Draw the cube
-                context.Draw(36, 0);
-
-                //font.DrawText(null, airspeed, rectASI, FontDrawFlags.Left | FontDrawFlags.VerticalCenter, Color.White);
-                //font.DrawText(null, altitude, rectALT, FontDrawFlags.Right | FontDrawFlags.VerticalCenter, Color.White);
-                //font.DrawText(null, heading, rectHDG, FontDrawFlags.Center | FontDrawFlags.Top, Color.White);
-
-                // Present!
-                swapChain.Present(0, PresentFlags.None);
-            });
-
-            // Release all resources
-            signature.Dispose();
-            vertexShaderByteCode.Dispose();
-            vertexShader.Dispose();
-            pixelShaderByteCode.Dispose();
-            pixelShader.Dispose();
-            vertices.Dispose();
-            layout.Dispose();
-            contantBuffer.Dispose();
-            depthBuffer.Dispose();
-            depthView.Dispose();
-            renderView.Dispose();
-            backBuffer.Dispose();
-            context.ClearState();
-            context.Flush();
-            device.Dispose();
-            context.Dispose();
-            swapChain.Dispose();
-            factory.Dispose();
+        /// <summary>
+        /// The main entry point for the application.
+        /// </summary>
+        [STAThread]
+        static void Main()
+        {
+            Program program = new Program();
+            program.Run(new DemoConfiguration("BackFlip - PFD"));
         }
     }
 }

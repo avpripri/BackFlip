@@ -9,15 +9,38 @@ namespace BackFlip
 {
     public class ADHRS : IDisposable
     {
-        static SerialPort _serialPort;
+        static SerialPort _serialPort = null;
 
-        public bool IsOpen { get { return _serialPort.IsOpen; } }
+        public bool IsOpen { get; set; }
+        public string ComPort { get; set; }
+        public int BaudRate { get; set; }
 
         public ADHRS(string comPort, int baudRate = 9600)
         {
-            _serialPort = new SerialPort(comPort, baudRate);
+            IsOpen = false;
+            ComPort = comPort; 
+            BaudRate = baudRate;
+        }
 
-            try { _serialPort.Open(); } catch (System.IO.IOException) { }
+        private void OpenPort()
+        {
+            IsOpen = false;
+            if (null != _serialPort)
+            {
+                _serialPort.Close();
+                _serialPort.Dispose();
+                _serialPort = null;
+            }
+
+            _serialPort = new SerialPort(ComPort, BaudRate);
+
+            try
+            {
+                _serialPort.Open();
+                IsOpen = _serialPort.IsOpen;
+            }
+            catch (System.IO.IOException) { }
+            catch (System.UnauthorizedAccessException) { }
         }
 
         public const char Flags = 'F';
@@ -32,20 +55,29 @@ namespace BackFlip
 
         public Dictionary<char, float> RawRead()
         {
-            while (IsOpen && _serialPort.BytesToRead > 0)
-            {
-                try
-                {
-                    var lin = _serialPort.ReadLine();
-                    var ahrsLine = lin.Split(',').Skip(1).Select(v => v.Split(':')).ToDictionary(k => k[0][0], v => float.Parse(v[1]));
+            if (!IsOpen)
+                OpenPort();
 
-                    if (ahrsLine.Count() >= 8)
+            try
+            {
+                while (IsOpen && _serialPort.BytesToRead > 0)
+                {
+                    try
                     {
-                        return ahrsLine;
+                        var lin = _serialPort.ReadLine();
+                        var ahrsLine = lin.Split(',').Skip(1).Select(v => v.Split(':')).ToDictionary(k => k[0][0], v => float.Parse(v[1]));
+
+                        if (ahrsLine.Count() >= 9)
+                        {
+                            return ahrsLine;
+                        }
                     }
+                    catch { break; }
                 }
-                catch { break; }
             }
+            catch (System.UnauthorizedAccessException) { IsOpen = false; }
+            catch (System.InvalidOperationException) { IsOpen = false; }
+
 
             return new Dictionary<char, float>();
         }

@@ -1,0 +1,4 @@
+localBaro=3005
+comPort=COM5
+baudRate=115200
+mbOffset=-2
