@@ -4,6 +4,15 @@ Better primary flight display - intended for use with [RTIMULib2-Arduino](https:
 
 ![backflip](https://github.com/avpripri/avpripri/blob/master/backflip.jpg)
 
+A ton of capability in a small package;
+- Angle of Attack
+- Airspeed
+- Altitude
+- Heading
+- Attitude
+- OGN Traffic (FLARM-like)
+- 3D GPS Position
+
 # Background
 This is a DirectX Windows application designed to be the best "split-window" companion with an electronic flight bag or similar flight/navigation computer.   It's designed to be a better primary flight display system period.
 
