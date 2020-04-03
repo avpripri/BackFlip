@@ -20,7 +20,6 @@
 
 using System;
 using System.Linq;
-using BackFlip;
 using SharpDX;
 using SharpDX.D3DCompiler;
 using SharpDX.Direct2D1;
@@ -32,7 +31,7 @@ using TextAntialiasMode = SharpDX.Direct2D1.TextAntialiasMode;
 using System.Windows.Forms;
 using System.IO;
 
-namespace SimpleHelloWorld
+namespace BackFlip
 {
 
     /// <summary>
@@ -45,7 +44,6 @@ namespace SimpleHelloWorld
         private Matrix view, proj;
         SharpDX.Direct3D11.Buffer contantBuffer;
         SharpDX.Direct3D11.DeviceContext context;
-        DepthStencilView depthView;
 
 
         TextFormat TextFormatCenter, TextFormatLeft, TextFormatRight, TextFormatRightSmall;
@@ -159,7 +157,7 @@ namespace SimpleHelloWorld
         int localBaro = 3004;
         float seaLevelMp; // stdPres = 1013.25f
         float roll = 0f;
-        float pitch = 0f;
+        //[TBD] float pitch = 0f; 
         float dp_Coef = 11.0f; // <-- calibrate this
         float AIS_Baseline = 2178;
         // House altitude 892.7 '
