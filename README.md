@@ -26,7 +26,7 @@ For manned visual reference flight, the FAA requires pressure altitude, airspeed
 - Airspeed - differential pressure
 - Compass - Magnetometer
 
-All but one of the above are commonly available on a single, compact and sold-state PCB board. Differential pressure, required for indiciated airspeed, must be added by solder-on a MPXV7002DP module (ebay $30) to ch2 servo (configured as analog to digital) on the controller and connecting the pressure port to a pitot source, will output a voltage that varies linearly with airspeed.  Airspeed calibration is configurable in the display software.
+All but one of the above are commonly available on a single, compact and solid-state PCB board. Differential pressure, required for indiciated airspeed, must be added by solder-on a MPXV7002DP module (ebay $30) to ch2 servo (configured as analog to digital) on the controller and connecting the pressure port to a pitot source, will output a voltage that varies linearly with airspeed.  Airspeed calibration is configurable in the display software.
  
 Additionally to the required information above, these flight controller boards also have 3 axis accellerometer and 3 axis solid state gyros which, when signal processed yield;
 
@@ -35,6 +35,8 @@ Additionally to the required information above, these flight controller boards a
 - Stabalized heading (merged with compass above)
 - Yaw
 - Accelleration
+
+And... to top it all off.  There's a relatively powerful 32-bit STM32F3 family microprocessor also right there on that same tiny board which is more than powerful enough to poll the sensors and signal process to derive the pilot-ready outputs.
 
 For this project, I chose to use an older generation of flight controller, the Naze32 "FULL" version or 10 dof. It is important that you get the "FULL" version or 10-dof.  Most flight controllers are just gyros, that won't work for this purpose.  For the Naze32 FULL, here are the list of sensors;
 
