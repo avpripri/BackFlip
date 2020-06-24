@@ -77,11 +77,16 @@ All numbers except 'F' are formatted as floating point
 
 Many avionics companies offer flight sensors, they have a few names... air-data, ADAHRS, IMU.  What makes this project different is that it's DIY, and cost.. $60 vs. $2000.  This is because we're leveraging hardware developed to a price-point to fly drones.  So one would ask, what about quality?  Is it any good... in short, yes, it's very good.  It definately does the job.
 
-For manned visual reference flight, the FAA requires pressure altitude, airspeed and heading.  The individual sensors required for this are;
+Excluding engine/fuel instrumentation, the FAA requires the following flight instrumentation equipment for visual rules [CFR Part 91.205](https://www.law.cornell.edu/cfr/text/14/91.205);
+ - Airspeed indicator
+ - Altimeter
+ - Magnetic direction indicator
 
-- Altimeter - barometeric pressure
-- Airspeed - differential pressure
-- Compass - Magnetometer
+The individual sensors required for this are (in the same order);
+
+- differential pressure
+- barometeric pressure
+- magnetometer
 
 All but one of the above are commonly available on a single, compact and solid-state PCB board. Differential pressure, required for indiciated airspeed, must be added by solder-on a MPXV7002DP module.  See build instructions.
  
