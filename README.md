@@ -36,7 +36,7 @@ Additionally to the required information above, these flight controller boards a
 - Yaw
 - Accelleration
 
-And... to top it all off.  There's a relatively powerful 32-bit STM32F3 family microprocessor also right there on that same tiny board which is more than powerful enough to poll the sensors and signal process to derive the pilot-ready outputs.
+And... to top it all off.  There's a relatively powerful 32-bit STM32 F3 microprocessor also right there on that same tiny board which is more than powerful enough to poll the sensors and signal process to derive the pilot-ready outputs.
 
 For this project, I chose to use an older generation of flight controller, the Naze32 "FULL" version or 10 dof. It is important that you get the "FULL" version or 10-dof.  Most flight controllers are just gyros, that won't work for this purpose.  For the Naze32 FULL, here are the list of sensors;
 
