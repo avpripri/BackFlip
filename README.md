@@ -26,7 +26,7 @@ For manned visual reference flight, the FAA requires pressure altitude, airspeed
 - Airspeed - differential pressure
 - Compass - Magnetometer
 
-All but one of the above are commonly available on a single, compact and solid-state PCB board. Differential pressure, required for indiciated airspeed, must be added by solder-on a MPXV7002DP module (ebay $30) to ch2 servo (configured as analog to digital) on the controller and connecting the pressure port to a pitot source, will output a voltage that varies linearly with airspeed.  Airspeed calibration is configurable in the display software.
+All but one of the above are commonly available on a single, compact and solid-state PCB board. Differential pressure, required for indiciated airspeed, must be added by solder-on a MPXV7002DP module.  See build instructions.
  
 Additionally to the required information above, these flight controller boards also have 3 axis accellerometer and 3 axis solid state gyros which, when signal processed yield;
 
@@ -46,6 +46,54 @@ For this project, I chose to use an older generation of flight controller, the N
 
 The [RTIMULib2-Arduino](https://github.com/avpripri/RTIMULib2) project is already configured to build, initialize, calibrate and generate data for these sensors.  Other boards can be used with other sensors, you'll need to configure and build your own firmway (see the project).
 
+# BOM/Build
+  
+  ## Source the following on amazon/ebay/alibaba (copy/paste search)
+  1. Naze32 / Flip32 F3 FULL 10 DOF (make sure the details include all the sensors above)
+  1. MPXV7002 module
+  1. Any windows tablet/laptop/surface
+  
+  ## Build the software
+  
+  ### Air-Data 
+  
+  1. In Visual Studio Code, install the "Platform IO" extension.  This is a popular extension for developing small embedded devices like BlackFlip.
+  1. Clone [RTIMULib2-Arduino](https://github.com/avpripri/RTIMULib2) 
+  1. Open RTIMULib2 above
+  1. Connect the Naze32 board via USB to your computer
+  1. Build and Flash
+ 
+  ### Display
+  1. Clone [Backflip](https://github.com/avpripri/BackFlip)
+  2. Open Backflip.sln in Visual Studio (full version, community works)
+  3. Build and run.
+  
+  ## Airspeed
+  
+  1. Solder the 3.3v power and ground from Naze32 to the Vin on the MPXV7002 module.  There's a 3.3v source on the programming pins of the board 
+  1. Solder the signal line from teh MPXV7002 to servo ch2 on the Naze32 (this has been configured in the firmware into an analog to digital input chanel).
+
+  ## Testing
+  
+  1. Open the serial window in Visual Studio Code
+  1. Select the correct COMM port
+  1. Set the baud rate to 9600
+  
+  You should see an output like...
+  ```F:5,R:-30.11,P:-2.25,H:100.00,G:0.81,Y:-0.47,A:2173.24,B:1021.16,T:19.72
+     F:5,R:-30.11,P:-2.26,H:100.00,G:0.81,Y:-0.47,A:2173.10,B:1021.17,T:19.72
+     F:5,R:-30.11,P:-2.26,H:100.00,G:0.81,Y:-0.47,A:2173.29,B:1021.18,T:19.72
+  ```
+
+  Success, you have an IMU!!!
+  
+  
+  ## Installation
+  
+  1. You'll want to mount the Naze32 and the MPXV7002 into a small project box to protect it.
+  1. Mount this module onto your aircraft in the correct orientation.  RTIMULIB does support alterante orientation, but you'll need to set a flag and re-flash the firmware. 
+  1. Connect the air data module to the tablet via a USB cable, I use a USB hub with external power so everything is getting agood power source and I have plenty of available usb ports.
+  
 # Visualization
 
 Classic EFIS designs are very "busy".  There's a lot of data in too small a screen.  The general "situational awareness" that comes with an EFIS is spectacular, but EFIS' come with a bad side-effect.  Even if you fly with them often, it's difficult to "at-a-glance" on a primary flight display _KNOW_ you're flying fine.  I took that and tried to make a better display.
