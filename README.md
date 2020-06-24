@@ -16,6 +16,34 @@ A ton of capability in a small package;
 # Background
 This is a DirectX Windows application designed to be the best "split-window" companion with an electronic flight bag or similar flight/navigation computer.   It's designed to be a better primary flight display system period.
 
+# Hardware
+
+Many avionics companies offer flight sensors, they have a few names... air-data, ADAHRS, IMU.  What makes this project different is that it's DIY, and cost.. $60 vs. $2000.  This is because we're leveraging hardware developed to a price-point to fly drones.  So one would ask, what about quality?  Is it any good... in short, yes, it's very good.  It definately does the job.
+
+For manned visual reference flight, the FAA requires pressure altitude, airspeed and heading.  The individual sensors required for this are;
+
+- Altimeter - barometeric pressure
+- Airspeed - differential pressure
+- Compass - Magnetometer
+
+All but one of the above are commonly available on a single, compact and sold-state PCB board. Differential pressure, required for indiciated airspeed, must be added by solder-on a MPXV7002DP module (ebay $30) to ch2 servo (configured as analog to digital) on the controller and connecting the pressure port to a pitot source, will output a voltage that varies linearly with airspeed.  Airspeed calibration is configurable in the display software.
+ 
+Additionally to the required information above, these flight controller boards also have 3 axis accellerometer and 3 axis solid state gyros which, when signal processed yield;
+
+- Pitch
+- Roll
+- Stabalized heading (merged with compass above)
+- Yaw
+- Accelleration
+
+For this project, I chose to use an older generation of flight controller, the Naze32 "FULL" version or 10 dof. It is important that you get the "FULL" version or 10-dof.  Most flight controllers are just gyros, that won't work for this purpose.  For the Naze32 FULL, here are the list of sensors;
+
+- MPU6050 (Gryo/ACC)
+- HMC5883L (Mag)
+- MS5611 (Baro)
+
+The [RTIMULib2-Arduino](https://github.com/avpripri/RTIMULib2) project is already configured to build, initialize, calibrate and generate data for these sensors.  Other boards can be used with other sensors, you'll need to configure and build your own firmway (see the project).
+
 # Visualization
 
 Classic EFIS designs are very "busy".  There's a lot of data in too small a screen.  The general "situational awareness" that comes with an EFIS is spectacular, but EFIS' come with a bad side-effect.  Even if you fly with them often, it's difficult to "at-a-glance" on a primary flight display _KNOW_ you're flying fine.  I took that and tried to make a better display.
