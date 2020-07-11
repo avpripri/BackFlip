@@ -81,6 +81,12 @@ namespace BackFlip
 
             base.Initialize(demoConfiguration);
 
+            var config = File.ReadAllLines("config.txt").Select(l => l.Split('=')).ToDictionary(k => k[0], v => string.Join("=", v.Skip(1)));
+            localBaro = int.Parse(config["localBaro"]);
+            comPort = config["comPort"];
+            baudRate = int.Parse(config["baudRate"]);
+            mbOffset = float.Parse(config["mbOffset"]);
+
             // Zero, Zero
             _form.Top = _form.Left = 0;
 
@@ -182,25 +188,38 @@ namespace BackFlip
                 });
         }
 
-        string comPort;
-        int baudRate;
+        static string comPort;
+        static int baudRate;
         static ADHRS adhrs;
         string airspeed = "0";
+        static float mbOffset = 0f;
+        static float alphaCal = 0f;
+        static string sideCarApp;
+
+
         int altitude = 0;
         string vsi = "0";
         string vsi30 = "30s 0";
         string heading = "352";
+        static int localBaro = 3004;
         float seaLevelMp; // stdPres = 1013.25f
         float roll = 0f;
-        //[TBD] float pitch = 0f; 
-        float dp_Coef = 11.0f; // <-- calibrate this
+        //float pitch = 0f;
+        float dp_Coef = 4.91744f; // <-- calibrate this, currently for m/s
         float AIS_Baseline = 2178;
         // House altitude 892.7 '
         SolidColorBrush baroColorBrush;
         SolidColorBrush errorBrush;
         DateTime lastRead = DateTime.Now;
         DateTime lastFrame = DateTime.Now;
-        float mbOffset = 0f;
+        double speedLast;
+        double baro2XLast;
+        const double coefOfPressChange = 0.19029495718363463368220742150333d;  /* 1 / 5.25 */
+
+        Queue<float> baroHist = new Queue<float>();     // Used to calculate baro average
+        float runningMeanVertVelocity;
+        float meanVerticalVelocity;
+        int sampleTick = 0;
 
         const int msPerFrame = (1000/40);
 
@@ -242,10 +261,9 @@ namespace BackFlip
                 roll = attitude[ADHRS.Roll];
                 heading = (5 * ((int)attitude[ADHRS.Heading] / 5)).ToString();
                 //pitch = -10 * ahrsLine[ADHRS.Pitch]; 
-                var dp = dp_Coef * (attitude[ADHRS.IAS] - AIS_Baseline);
-                var speed = (int)Math.Sqrt(Math.Max(0, dp));
-                airspeed = (speed < 30 ? 0 : speed).ToString();
-                lastRead = DateTime.Now;
+                CalculatePressureInstruments(attitude[ADHRS.IAS], attitude[ADHRS.Baro], dT);
+
+                lastRead = nowT;
             }
 
             if ((DateTime.Now - lastRead).TotalSeconds > 1.2)
