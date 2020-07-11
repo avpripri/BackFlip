@@ -56,7 +56,7 @@ namespace SharpDX.Samples
         private readonly DemoTime clock = new DemoTime();
         private FormWindowState _currentFormWindowState;
         private bool _disposed;
-        private Form _form;
+        protected Form _form;
         private float _frameAccumulator;
         private int _frameCount;
         private DemoConfiguration _demoConfiguration;
@@ -142,7 +142,8 @@ namespace SharpDX.Samples
         {
             return new RenderForm(config.Title)
             {
-                ClientSize = new System.Drawing.Size(config.Width, config.Height)
+                ClientSize = new System.Drawing.Size(config.Width, config.Height),
+                FormBorderStyle = config.HideWindowFrames ? System.Windows.Forms.FormBorderStyle.None : System.Windows.Forms.FormBorderStyle.FixedSingle
             };
         }
 

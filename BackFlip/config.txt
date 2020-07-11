@@ -1,4 +1,6 @@
 localBaro=3005
-comPort=COM5
+comPort=COM3
 baudRate=115200
 mbOffset=-2
+sideCarApp=c:\bin\XCSoar\XCSoar.exe -fly
+alphaCal=1600

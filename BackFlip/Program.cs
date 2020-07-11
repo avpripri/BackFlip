@@ -30,6 +30,7 @@ using SharpDX.Samples;
 using TextAntialiasMode = SharpDX.Direct2D1.TextAntialiasMode;
 using System.Windows.Forms;
 using System.IO;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
@@ -80,11 +81,8 @@ namespace BackFlip
 
             base.Initialize(demoConfiguration);
 
-            var config = File.ReadAllLines("config.txt").Select(l => l.Split('=')).ToDictionary(k => k[0], v => string.Join("=", v.Skip(1)));
-            localBaro = int.Parse(config["localBaro"]);
-            comPort = config["comPort"];
-            baudRate = int.Parse(config["baudRate"]);
-            mbOffset = float.Parse(config["mbOffset"]);
+            // Zero, Zero
+            _form.Top = _form.Left = 0;
 
             UpdateBaro();
 
@@ -143,7 +141,8 @@ namespace BackFlip
             {
                 Size = new Size2F(1f, 2f),
                 alphaMax = 15,
-                alphaTarget = 10
+                alphaTarget = 10f,
+                alphaActual = 10f,
             }.Make());
 
             // Create Constant Buffer
@@ -172,23 +171,29 @@ namespace BackFlip
 
         private void SaveConfig()
         {
-            File.WriteAllLines("config.txt", new []{ $"localBaro={localBaro}", $"comPort={comPort}", $"baudRate={baudRate}", $"mbOffset={mbOffset}"});
+            File.WriteAllLines("config.txt", 
+                new []{ 
+                    $"localBaro={localBaro}", 
+                    $"comPort={comPort}", 
+                    $"baudRate={baudRate}",
+                    $"alphaCal={alphaCal}",
+                    $"mbOffset={mbOffset}",
+                    $"sideCarApp={sideCarApp}",
+                });
         }
 
         string comPort;
         int baudRate;
-
         static ADHRS adhrs;
         string airspeed = "0";
         int altitude = 0;
         string vsi = "0";
         string vsi30 = "30s 0";
         string heading = "352";
-        int localBaro = 3004;
         float seaLevelMp; // stdPres = 1013.25f
         float roll = 0f;
-        float pitch = 0f;
-        float dp_Coef = 4.91744f; // <-- calibrate this, currently for m/s
+        //[TBD] float pitch = 0f; 
+        float dp_Coef = 11.0f; // <-- calibrate this
         float AIS_Baseline = 2178;
         // House altitude 892.7 '
         SolidColorBrush baroColorBrush;
@@ -196,14 +201,6 @@ namespace BackFlip
         DateTime lastRead = DateTime.Now;
         DateTime lastFrame = DateTime.Now;
         float mbOffset = 0f;
-        double speedLast;
-        double baro2XLast;
-        const double coefOfPressChange = 0.19029495718363463368220742150333d;  /* 1 / 5.25 */
-
-        Queue<float> baroHist = new Queue<float>();     // Used to calculate baro average
-        float runningMeanVertVelocity;
-        float meanVerticalVelocity;
-        int sampleTick = 0;
 
         const int msPerFrame = (1000/40);
 
@@ -245,10 +242,10 @@ namespace BackFlip
                 roll = attitude[ADHRS.Roll];
                 heading = (5 * ((int)attitude[ADHRS.Heading] / 5)).ToString();
                 //pitch = -10 * ahrsLine[ADHRS.Pitch]; 
-
-                CalculatePressureInstruments(attitude[ADHRS.IAS], attitude[ADHRS.Baro], dT);
-
-                lastRead = nowT;
+                var dp = dp_Coef * (attitude[ADHRS.IAS] - AIS_Baseline);
+                var speed = (int)Math.Sqrt(Math.Max(0, dp));
+                airspeed = (speed < 30 ? 0 : speed).ToString();
+                lastRead = DateTime.Now;
             }
 
             if ((DateTime.Now - lastRead).TotalSeconds > 1.2)
@@ -351,6 +348,14 @@ namespace BackFlip
                 UpdateBaro();
                 SaveConfig();
             }
+
+            if (e.X < 50 && e.Y < 50)
+            {
+                _form.Top = _form.Left = 0;
+
+                _form.FormBorderStyle = _form.FormBorderStyle == System.Windows.Forms.FormBorderStyle.FixedSingle ?
+                    System.Windows.Forms.FormBorderStyle.None : System.Windows.Forms.FormBorderStyle.FixedSingle;
+            }
         }
 
         private int Altitude(float pressure, float seaLevelMp)
@@ -358,6 +363,23 @@ namespace BackFlip
             return (int)(/* meters=> 44330*/ 145439.6f * (1.0 - Math.Pow(pressure / seaLevelMp, coefOfPressChange)));
         }
 
+        const string preziSetApp = @"C:\Windows\WinSxS\amd64_microsoft-windows-m..resentationsettings_31bf3856ad364e35_10.0.17763.1_none_5ded448f5b93896b\PresentationSettings.exe";
+
+        protected override void EndRun()
+        {
+            base.EndRun();
+
+            //  This attempts to execute "PresenationSettings" to turn presentation mode on/off
+            // - WEIRDnESS NOTE: I trie refactoring this and it stopped workign (identical code running in a static method)
+            //  "Windows SxS" is a very very very odd little beast
+            var proc = new Process();
+            proc.StartInfo.FileName = "cmd.exe"; ;
+            proc.StartInfo.Arguments = $"/C \"{preziSetApp} /stop\"";
+            proc.StartInfo.UseShellExecute = true;
+            proc.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            proc.StartInfo.Verb = "runas";
+            proc.Start();
+        }
 
         /// <summary>
         /// The main entry point for the application.
@@ -365,8 +387,57 @@ namespace BackFlip
         [STAThread]
         static void Main()
         {
+            var config = File.ReadAllLines("config.txt").Select(l => l.Split('=').Select(v=>v.Trim())).ToDictionary(k => k.First(), v => string.Join("=", v.Skip(1)));
+            localBaro = int.Parse(config["localBaro"]);
+            comPort = config["comPort"];
+            baudRate = int.Parse(config["baudRate"]);
+            mbOffset = float.Parse(config["mbOffset"]);
+            sideCarApp = config["sideCarApp"];
+            alphaCal = float.Parse(config["alphaCal"]);
+
             Program program = new Program();
-            program.Run(new DemoConfiguration("BackFlip - PFD"));
+
+            var screen = Screen.PrimaryScreen.Bounds;
+
+            var isLandscape = screen.Width > screen.Height;
+
+            var midWidth = isLandscape ? 2 * screen.Width / 5 : screen.Width;
+            var midHeight = isLandscape ? screen.Height : 2 * screen.Height / 5;
+
+            if (!String.IsNullOrEmpty(sideCarApp))
+            {
+                var sideCarAppName = Path.GetFileNameWithoutExtension(sideCarApp.Split('/').Last());
+
+                var xcSoar = Process.GetProcessesByName(sideCarAppName);
+
+                if (xcSoar.Length == 0)
+                {
+                    var parts = sideCarApp.Split(' ');
+                    Process.Start(parts.First(), string.Join(" ", parts.Skip(1)));
+                    System.Threading.Thread.Sleep(2000);
+                }
+
+                PositionWindow.SendRequest(sideCarAppName,
+                    new System.Drawing.Rectangle(isLandscape ? (midWidth - 6) : 0, isLandscape ? 0 : (midHeight - 6),
+                                                 isLandscape ? (screen.Width - midWidth + 12) : screen.Width, isLandscape ? screen.Height : (screen.Height - midHeight + 12)));
+            }
+
+
+           
+            //  This attempts to execute "PresenationSettings" to turn presentation mode on/off
+            //    In presentation mode the machine won't go to sleep after some period of inactivity.  This is really important!  
+            //    You dont want the machine to just go blank in 5 minutes.
+            // - WEIRDnESS NOTE: I trie refactoring this and it stopped workign (identical code running in a static method)
+            //  "Windows SxS" is a very very very odd little beast
+            var proc = new Process();
+            proc.StartInfo.FileName = "cmd.exe"; ;
+            proc.StartInfo.Arguments = $"/C \"{preziSetApp} /start\"";
+            proc.StartInfo.UseShellExecute = true;
+            proc.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            proc.StartInfo.Verb = "runas";
+            proc.Start();
+
+            program.Run(new DemoConfiguration("BackFlip - PFD", midWidth, midHeight) { HideWindowFrames = true });
         }
     }
 }

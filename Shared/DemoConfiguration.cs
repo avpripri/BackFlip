@@ -76,5 +76,10 @@ namespace SharpDX.Samples
         {
             get; set;
         }
+        
+        /// <summary>
+        /// Set true to remove windows frames
+        /// </summary>
+        public bool HideWindowFrames { get; set; }
     }
 }
