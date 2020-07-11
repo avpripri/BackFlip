@@ -30,6 +30,8 @@ using SharpDX.Samples;
 using TextAntialiasMode = SharpDX.Direct2D1.TextAntialiasMode;
 using System.Windows.Forms;
 using System.IO;
+using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace BackFlip
 {
@@ -45,12 +47,37 @@ namespace BackFlip
         SharpDX.Direct3D11.Buffer contantBuffer;
         SharpDX.Direct3D11.DeviceContext context;
 
+        float verticalVelocity = 0;
+        bool done = false;
+        bool beepZero = false;
+
+        async void VariometerBeeper()
+        {
+            await Task.Run(() => BeepVario());
+        }
+
+        private void BeepVario()
+        {
+            while (!done)
+            {
+                var duration = (int)Math.Max(100, Math.Min(500, 1000f / (verticalVelocity + 2f)));
+                var tone = 780 + (int)Math.Max(0, 100 * verticalVelocity);
+
+                // only beep above zero, by config
+                if (beepZero || verticalVelocity > 0)
+                    Console.Beep(tone, duration);
+
+                System.Threading.Thread.Sleep(Math.Max(250, duration));
+            }
+        }
 
         TextFormat TextFormatCenter, TextFormatLeft, TextFormatRight, TextFormatRightSmall;
 
         public RectangleF ClientRectangle { get; private set; }
         protected override void Initialize(DemoConfiguration demoConfiguration)
         {
+
+
             base.Initialize(demoConfiguration);
 
             var config = File.ReadAllLines("config.txt").Select(l => l.Split('=')).ToDictionary(k => k[0], v => string.Join("=", v.Skip(1)));
@@ -150,15 +177,18 @@ namespace BackFlip
 
         string comPort;
         int baudRate;
+
         static ADHRS adhrs;
         string airspeed = "0";
         int altitude = 0;
+        string vsi = "0";
+        string vsi30 = "30s 0";
         string heading = "352";
         int localBaro = 3004;
         float seaLevelMp; // stdPres = 1013.25f
         float roll = 0f;
-        //[TBD] float pitch = 0f; 
-        float dp_Coef = 11.0f; // <-- calibrate this
+        float pitch = 0f;
+        float dp_Coef = 4.91744f; // <-- calibrate this, currently for m/s
         float AIS_Baseline = 2178;
         // House altitude 892.7 '
         SolidColorBrush baroColorBrush;
@@ -166,8 +196,26 @@ namespace BackFlip
         DateTime lastRead = DateTime.Now;
         DateTime lastFrame = DateTime.Now;
         float mbOffset = 0f;
+        double speedLast;
+        double baro2XLast;
+        const double coefOfPressChange = 0.19029495718363463368220742150333d;  /* 1 / 5.25 */
+
+        Queue<float> baroHist = new Queue<float>();     // Used to calculate baro average
+        float runningMeanVertVelocity;
+        float meanVerticalVelocity;
+        int sampleTick = 0;
 
         const int msPerFrame = (1000/40);
+
+        // Common unit conversion factors
+        // NOTE: All base calculations are SI units (m, m/s, mb).  When displayed, they are converted to pilot prefered units
+
+        const float mph2mps = 0.44704f;
+        const float mps2kts = 1.943844f;
+        const float mps2fpm = 196.85039370078738f;
+        private const int averagingSampleCount = (30*30); // typically we're around 30fps, and I want 30 second average.
+        
+
 
         protected override void Draw(DemoTime time)
         {
@@ -191,14 +239,16 @@ namespace BackFlip
             var attitude = adhrs.RawRead();
             if (attitude.Count() > 0)
             {
+                var nowT = DateTime.Now;
+                var dT = (float)(nowT - lastRead).TotalSeconds;
+
                 roll = attitude[ADHRS.Roll];
-                altitude = (10 * (Altitude(attitude[ADHRS.Baro]-mbOffset, seaLevelMp) / 10));
                 heading = (5 * ((int)attitude[ADHRS.Heading] / 5)).ToString();
                 //pitch = -10 * ahrsLine[ADHRS.Pitch]; 
-                var dp = dp_Coef * (attitude[ADHRS.IAS] - AIS_Baseline);
-                var speed = (int)Math.Sqrt(Math.Max(0, dp));
-                airspeed = (speed < 30 ? 0 : speed).ToString();
-                lastRead = DateTime.Now;
+
+                CalculatePressureInstruments(attitude[ADHRS.IAS], attitude[ADHRS.Baro], dT);
+
+                lastRead = nowT;
             }
 
             if ((DateTime.Now - lastRead).TotalSeconds > 1.2)
@@ -218,6 +268,73 @@ namespace BackFlip
 
             RenderTarget2D.DrawText(airspeed, TextFormatLeft, ClientRectangle, SceneColorBrush);
 
+            RenderTarget2D.DrawText(vsi, TextFormatRight,        new RectangleF(0, 10, ClientRectangle.Width - 15, 150), SceneColorBrush);
+            RenderTarget2D.DrawText(vsi30, TextFormatRightSmall, new RectangleF(0, 10, ClientRectangle.Width, 50), SceneColorBrush);
+
+        }
+
+        /// <summary>
+        /// Given pitot and static pressures, compute airspeed, altitude and vertical velocity
+        /// </summary>
+        /// <param name="pitotPress"></param>
+        /// <param name="staticPress"></param>
+        /// <param name="dT"></param>
+
+        private void CalculatePressureInstruments(float pitotPress, float staticPress, float dT)
+        {
+            var speedMps = Math.Sqrt(dp_Coef * Math.Max(0, pitotPress - AIS_Baseline));
+            var speedKts = speedMps * mps2kts;
+
+            // Compute the airspeed
+            airspeed = ((int)(speedMps < 30d ? 0 : speedMps)).ToString();
+
+            var dV = (speedLast - speedMps) / dT;
+            var kinetticFactor = Math.Sign(dV) * dV * dV / 19.8d; // must be signed to work... lossing velocity needs to drop total energy
+
+            var baro2X = Math.Pow((staticPress - mbOffset) / seaLevelMp, coefOfPressChange);
+
+            // Altituded change from pressure difference derivation
+            // --- Given
+            // k = 44330
+            // x = 1 / 5.25
+            // p0 = 1013.25
+            // --- stubtracting two pressures equations yields;
+            // [k * (1 - (p2 / p0) ^ x)] - [k * (1 - (p1 / p0) ^ x)]
+            // -- Then
+            // k * [(1 - (p2 / p0) ^ x) - (1 - (p1 / p0) ^ x)]
+            // k * (1 - (p2 / p0) ^ x - 1 + (p1 / p0) ^ x)
+            // k * ((p1 / p0) ^ x - (p2 / p0) ^ x)  => p1^x / p0^x
+            // k * (p1 ^ x - p2 ^ x) / p0 ^ x
+            // --- QED
+            // k / p0 ^ x * (p1 ^ x - p2 ^ x), or
+            // 11862.610784520926279471081940874 * (p1 ^ x - p2 ^ x)
+            const double k_over_p02x = 11862.610784520926279471081940874;
+
+            // Convert the baro pressure then add the kinnetic energy factor to generate a total energy
+            verticalVelocity = (float)((k_over_p02x * (baro2X - baro2XLast) / dT) + kinetticFactor);
+
+            baroHist.Enqueue(verticalVelocity);
+            runningMeanVertVelocity += verticalVelocity;
+
+            if (baroHist.Count() > averagingSampleCount)
+            {
+                meanVerticalVelocity = runningMeanVertVelocity / 256;
+                runningMeanVertVelocity -= baroHist.Dequeue();
+
+                if (sampleTick++ > 1000)  // reset the runningMean periodically or float rounding errors will creap in
+                {
+                    runningMeanVertVelocity = baroHist.Sum(v => v);
+                    sampleTick = 0;
+                }
+            }
+
+            altitude = (int)(/* meters=> 44330*/145439.6d * (1.0 - baro2X));
+
+            speedLast = speedMps;
+            baro2XLast = baro2X;
+
+            vsi = (10 * (int)(verticalVelocity * mps2fpm / 10f)).ToString();
+            vsi30 = " 30s" + (10 * (int)(meanVerticalVelocity * mps2fpm / 10f)).ToString();
         }
 
         protected override void MouseClick(MouseEventArgs e)
@@ -238,7 +355,7 @@ namespace BackFlip
 
         private int Altitude(float pressure, float seaLevelMp)
         {
-            return (int)(/* meters=> 44330*/ 145439.6f * (1.0 - Math.Pow(pressure / seaLevelMp, 0.1902949)));
+            return (int)(/* meters=> 44330*/ 145439.6f * (1.0 - Math.Pow(pressure / seaLevelMp, coefOfPressChange)));
         }
 
 
