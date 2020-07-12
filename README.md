@@ -26,7 +26,7 @@ You don't actually... NEED all that information all the time.  Airspeed, altitud
 
 * Angle of Attack
 * Attitude
-* Slip / Skip
+* Vario (for a glider)
 
 # Tactical, not strategic
 
