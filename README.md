@@ -32,11 +32,11 @@ You don't actually... NEED all that information all the time.  Airspeed, altitud
 
 This display is 100% tactical... what do I need to _DO_ to fly the air plane right in this moment.  Strategic flying folds in more information for navigation, traffic and weather.  I argue that should go on another visualization dedicated to that "bigger picture" purpose.
 
-## Angle of Attack / Attitude / Slip-Skid
+I combined these three into one simple visualization, the "Attitude of Attack Chevron"  and it is the most important instrument in the plane. The center triangle represents the nose of the aircraft.  The chevrons go from highest AoA above on top as "Red", to zero AoA "Blue" on the bottom.  For any given phase of flight the "target" AoA is calculated for you.  
 
-I combined these three into one simple visualization, the "Attitude of Attack Chevron"  and it is the most important instrument in the plane.
+For powered take off target AoA would correlate with Vx-speed bellow 400' and Vy above until engine temperature dictates higher speeds.  For cruising in powered aircraft, it correlates to the target speed in cruise.  For landing the AoA target transitions to maximum safe manoeuvring angle-of-attack (based on minimum safe speed) as you approach the runway environment.
 
-The center triangle represents the nose of the aircraft.  The chevrons go from highest AoA above on top as "Red", to zero AoA "Blue" on the bottom.  For any given phase of flight the "target" AoA is calculated for you.  For powered take off target AoA would correlate with Vx-speed bellow 400' and Vy above until engine temperature dictates higher speeds.  In unaccelerated level flight on a glider would correlate to the McCready speed-to-fly.  For a cruising powered aircraft, it correlates to Best Range Speed in cruise.  For landing this AoA target transitions to Maximum safe manoeuvring angle-of-attack (based on minimum safe speed) as you approach the runway environment.
+In a glider; target AoA for take-off and landing are similar to powered, but cruise and thermally modes are very different.  The AoA correlates with the real-time-lift-factored "McCready" speed-to-fly.  That means the target moves up if you're in lift, down if your in sink or cruising and it adjust for the days conditions.  McCready speed should be set to the next lift you think you're going to get (forecasted), so the pilot mush have the freedome to set an "optimism" number.
 
 # Backflip IMU
 
