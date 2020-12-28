@@ -1,21 +1,19 @@
-# ElixirOpengl
+# BackFlip2 
 
-**TODO: Add description**
+Elixir re-write of the Backflip PFD.  Designed to run with the Backflip IMU.
 
 ## Installation
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `elixir_opengl` to your list of dependencies in `mix.exs`:
+Install Elixir https://elixir-lang.org/install.html
 
-```elixir
-def deps do
-  [
-    {:elixir_opengl, "~> 0.1.0"}
-  ]
-end
-```
+from any shell/command;
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/elixir_opengl](https://hexdocs.pm/elixir_opengl).
+``cd to backflip2 folder``
 
+``mix deps.get``
+
+## Running
+
+`` iex -S mix``
+
+iex(1)> ``GameCore.start_link()``
