@@ -1,0 +1,3 @@
+%{
+  "math": {:hex, :math, "0.4.0", "301132614d02f0d17c71ff20a7b260ff542606403972e261ec25dc79d7d17558", [:mix], [], "hexpm", "26342cb1ed14a52c5fd19e93edaf426d638cdf9d2016fc24c48905024e22c9cf"},
+}
