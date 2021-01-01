@@ -130,10 +130,10 @@ defmodule ElixirOpengl do
         fn i ->
           t = i*Math.pi/(2*n)
           :gl.color3f(1.0, 0.0, 0.0)
-          :gl.vertex3f(a*Math.sin(t), b*Math.cos(t)+(1-b), 0.0) #top left
+          :gl.vertex3f(a*Math.sin(t), 2*b*Math.cos(t)+(1-b), 0.0) #top left
 
           :gl.color3f(0.0, 1.0, 0.0)
-          :gl.vertex3f(i/(2*n), -1.0, 0.0) #top left
+          :gl.vertex3f(i/(1.5*n), -2.0, 0.0) #top left
         end)
     :gl.end()
 

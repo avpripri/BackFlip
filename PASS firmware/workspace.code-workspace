@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "..\\..\\..\\Repo\\BackFlip"
+		},
+		{
+			"name": "PASSMaster",
+			"path": "..\\PASSMaster"
+		},
+		{
+			"name": "PASSfirm",
+			"path": "."
+		}
+	],
+	"settings": {}
+}
