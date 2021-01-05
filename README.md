@@ -155,3 +155,13 @@ The [RTIMULib2-Arduino](https://github.com/avpripri/RTIMULib2) project is alread
   1. You'll want to mount the Naze32 and the MPXV7002 into a small project box to protect it.
   1. Mount this module onto your aircraft in the correct orientation.  RTIMULIB does support alterante orientation, but you'll need to set a flag and re-flash the firmware. 
   1. Connect the air data module to the tablet via a USB cable, I use a USB hub with external power so everything is getting agood power source and I have plenty of available usb ports.
+
+#  X Plane plugin
+Connects Xplane 11 to Backflip using sockets
+  ##  Installation
+  1. Open MotionPlatformData project https://github.com/avpripri/BackFlip/blob/xplane/MotionPlatformData/MotionPlatformData.vcxproj
+  2. Build the project
+  3. Copy folder "MotionPlatformData"(found in Debug/plugins) to your Xplane plugins directory(i.e: C:\Program Files (x86)\Steam\steamapps\common\X-Plane 11\Resources\plugins)
+  4. Run Backflip
+  5. Run Xplane
+  
