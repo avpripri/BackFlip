@@ -92,7 +92,7 @@ namespace BackFlip
 
             UpdateBaro();
 
-            adhrs = new ADHRS(comPort, baudRate);
+            adhrs = new ADHRSXPlane(comPort, baudRate);
 
             // Initialize a TextFormat
             TextFormatCenter = new TextFormat(FactoryDWrite, "Calibri", 64)
@@ -190,7 +190,7 @@ namespace BackFlip
 
         static string comPort;
         static int baudRate;
-        static ADHRS adhrs;
+        static ADHRSXPlane adhrs;
         string airspeed = "0";
         static float mbOffset = 0f;
         static float alphaCal = 0f;
@@ -256,7 +256,7 @@ namespace BackFlip
             if (attitude.Count() > 0)
             {
                 var nowT = DateTime.Now;
-                var dT = (float)(nowT - lastRead).TotalSeconds;
+                var dT = Math.Max(10,(float)(nowT - lastRead).TotalSeconds);
 
                 roll = attitude[ADHRS.Roll];
                 heading = (5 * ((int)attitude[ADHRS.Heading] / 5)).ToString();

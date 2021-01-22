@@ -62,6 +62,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ADHRS.cs" />
+    <Compile Include="ADHRSXPlane.cs" />
+    <Compile Include="AsynchronousSocketListener.cs" />
     <Compile Include="Chevrons3.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
