@@ -212,26 +212,27 @@ int MotionPlatformDataHandleMouseClickCallback(
 
 //---------------------------------------------------------------------------
 // FlightLoop callback to calculate motion data and store it in our buffers
+const float standardPressure = 1013.25f;
 
 float MotionPlatformDataLoopCB(float elapsedMe, float elapsedSim, int counter, void * refcon)
 {
 	MPD_CalculateMotionData();
-	float indicatedPressure = MPD_MotionData[0];
+	int rawPressureValue = (int)MPD_MotionData[0];
 	float heading = MPD_MotionData[1];
 	float roll = MPD_MotionData[2];
 	float pitch = MPD_MotionData[3];
 	float barometricPressure = MPD_MotionData[4];
 	float verticalAcceleration = MPD_MotionData[5];
 
-
-	sprintf(MPD_Buffer[0], "Indicated Pressure = %f", indicatedPressure);
+	sprintf(MPD_Buffer[0], "rawPitotPressure = %d", rawPressureValue);
 	sprintf(MPD_Buffer[1], "Heading = %f", heading);
 	sprintf(MPD_Buffer[2], "Roll = %f", roll);
 	sprintf(MPD_Buffer[3], "Pitch = %f", pitch);
 	sprintf(MPD_Buffer[4], "Barometric pressure = %f", barometricPressure);
 	sprintf(MPD_Buffer[5], "Vertical Acceleration = %f", verticalAcceleration);
+
 	char message[256];
-	sprintf(message, "F:5,R:%f,P:%f,H:%f,G:%f,A:%f,B:%f,T:19.73<EOF>",roll, pitch, heading, verticalAcceleration,indicatedPressure, barometricPressure );
+	sprintf(message, "F:5,R:%f,P:%f,H:%f,G:%f,A:%d,B:%f,T:19.73<EOF>",roll, pitch, heading, verticalAcceleration, rawPressureValue, barometricPressure );
 	SendSocketMessage(message);
 
 	//SendSocketMessage("Hello<EOF>");
@@ -299,12 +300,16 @@ void MPD_CalculateMotionData(void)
 	float a_nrml= MPD_fallout(fnrml_prop+fnrml_aero+fnrml_gear,-0.1,0.1)/MPD_fltmax2(m_total,1.0);
 	float a_side= (fside_prop+fside_aero+fside_gear)/MPD_fltmax2(m_total,1.0)*ratio;
 	float a_axil= (faxil_prop+faxil_aero+faxil_gear)/MPD_fltmax2(m_total,1.0)*ratio;
-	
 
+	const float dp_Coef = 4.91744f;
+	const float AIS_Baseline = 2178;
+
+	// The IMU send the raw ADC value, we have to exproximate it by inverting the equation we use in the PFD
+	auto pitotSensorReadingEst = AIS_Baseline + airspeed * airspeed / dp_Coef;
 
 	// Store the results in an array so that we can easily display it.
 
-	MPD_MotionData[0] = 1013;// = indicatedPitotPressure;
+	MPD_MotionData[0] = pitotSensorReadingEst;// = indicatedPitotPressure;
 	MPD_MotionData[1] = psi;//heading
 	MPD_MotionData[2] = phi;//roll
 	MPD_MotionData[3] = pitch;

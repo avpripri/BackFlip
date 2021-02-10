@@ -1,5 +1,6 @@
 ﻿
 using System;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -16,6 +17,8 @@ namespace BackFlip
         public static event EventHandler<MessageRecievedEventArgs> MessageReceived;
         // Thread signal.  
         public static ManualResetEvent allDone = new ManualResetEvent(false);
+
+        public static Func<bool> IsRunning = () => true;
 
         public AsynchronousSocketListener()
         {
@@ -41,19 +44,19 @@ namespace BackFlip
                 listener.Bind(localEndPoint);
                 listener.Listen(100);
 
-                while (true)
+                while (IsRunning())
                 {
                     // Set the event to nonsignaled state.  
                     allDone.Reset();
 
                     // Start an asynchronous socket to listen for connections.  
-                    Console.WriteLine("Waiting for a connection...");
+                    Debug.WriteLine("Waiting for a connection...");
                     listener.BeginAccept(
                         new AsyncCallback(AcceptCallback),
                         listener);
 
                     // Wait until a connection is made before continuing.  
-                    allDone.WaitOne();
+                    allDone.WaitOne(500);
                 }
 
             }
@@ -112,7 +115,8 @@ namespace BackFlip
                     OnMessageReceived(message);
                     // All the data has been read from the
                     // client. Display it on the console.  
-                    Console.WriteLine("Read {0} bytes from socket. \n Data : {1}",
+ 
+                    Debug.WriteLine("Read {0} bytes from socket. \n Data : {1}",
                         content.Length, content);
                     // Echo the data back to the client.  
                     Send(handler, content);
@@ -149,7 +153,7 @@ namespace BackFlip
 
                 // Complete sending the data to the remote device.  
                 int bytesSent = handler.EndSend(ar);
-                Console.WriteLine("Sent {0} bytes to client.", bytesSent);
+                Debug.WriteLine("Sent {0} bytes to client.", bytesSent);
 
                 handler.Shutdown(SocketShutdown.Both);
                 handler.Close();

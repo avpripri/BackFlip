@@ -158,10 +158,17 @@ The [RTIMULib2-Arduino](https://github.com/avpripri/RTIMULib2) project is alread
 
 #  X Plane plugin
 Connects Xplane 11 to Backflip using sockets
-  ##  Installation
-  1. Open MotionPlatformData project https://github.com/avpripri/BackFlip/blob/xplane/MotionPlatformData/MotionPlatformData.vcxproj
-  2. Build the project
-  3. Copy folder "MotionPlatformData"(found in Debug/plugins) to your Xplane plugins directory(i.e: C:\Program Files (x86)\Steam\steamapps\common\X-Plane 11\Resources\plugins)
-  4. Run Backflip
-  5. Run Xplane
-  
+  ##  Installation only
+
+  1. Download MotionPlatformData.zip from here https://github.com/avpripri/BackFlip/MotionPlatformData.zip
+  1. Copy to your to your Xplane plugins directory(i.e: C:\Program Files (x86)\Steam\steamapps\common\X-Plane 11\Resources\plugins)
+  1. Build/Run Backflip
+  1. Run Xplane
+
+  ## Build from source
+
+  1. Open the backflip project
+  1. Add the library path unzipped from step 1 to the C++ project
+  1. Build the project
+  1. Copy folder "MotionPlatformData"(found in Debug/plugins) to your Xplane plugins directory(i.e: C:\Program Files (x86)\Steam\steamapps\common\X-Plane 11\Resources\plugins)
+  1. See Easy install instruction above

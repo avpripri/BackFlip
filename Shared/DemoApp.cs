@@ -61,6 +61,8 @@ namespace SharpDX.Samples
         private int _frameCount;
         private DemoConfiguration _demoConfiguration;
 
+        public static bool IsFormClosed { get; private set; }
+
         /// <summary>
         ///   Performs object finalization.
         /// </summary>
@@ -164,7 +166,7 @@ namespace SharpDX.Samples
             _form = CreateForm(_demoConfiguration);
             Initialize(_demoConfiguration);
 
-            bool isFormClosed = false;
+            IsFormClosed = false;
             bool formIsResizing = false;
 
             _form.MouseClick += HandleMouseClick;
@@ -187,7 +189,7 @@ namespace SharpDX.Samples
                 HandleResize(o, args);
             };
 
-            _form.Closed += (o, args) => { isFormClosed = true; };
+            _form.Closed += (o, args) => { IsFormClosed = true; };
 
             LoadContent();
 
@@ -195,7 +197,7 @@ namespace SharpDX.Samples
             BeginRun();
             RenderLoop.Run(_form, () =>
             {
-                if (isFormClosed)
+                if (IsFormClosed)
                 {
                     return;
                 }

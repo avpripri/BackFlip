@@ -38,6 +38,7 @@ namespace BackFlip
             ComPort = comPort;
             BaudRate = baudRate;
             AsynchronousSocketListener.MessageReceived += AsynchronousSocketListener_MessageReceived;
+            AsynchronousSocketListener.IsRunning = () => !SharpDX.Samples.DemoApp.IsFormClosed; // lets the thread listener know we're done
             Thread thread1 = new Thread(AsynchronousSocketListener.StartListening);
             thread1.Start();
         }

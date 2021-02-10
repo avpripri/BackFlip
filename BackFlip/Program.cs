@@ -48,29 +48,19 @@ namespace BackFlip
         SharpDX.Direct3D11.Buffer contantBuffer;
         SharpDX.Direct3D11.DeviceContext context;
 
-        float verticalVelocity = 0;
-        bool done = false;
-        bool beepZero = false;
+        static double verticalVelocity = 0;
 
-        async void VariometerBeeper()
+        // beeper beepy beep
+        VarioBeeping varioBeeper = new VarioBeeping()
         {
-            await Task.Run(() => BeepVario());
-        }
+            GetVerticalVelocityMPS = () => (float)Program.verticalVelocity,
+            IsRunning = () => !SharpDX.Samples.DemoApp.IsFormClosed,
+            Mute = true
+        };
 
-        private void BeepVario()
-        {
-            while (!done)
-            {
-                var duration = (int)Math.Max(100, Math.Min(500, 1000f / (verticalVelocity + 2f)));
-                var tone = 780 + (int)Math.Max(0, 100 * verticalVelocity);
-
-                // only beep above zero, by config
-                if (beepZero || verticalVelocity > 0)
-                    Console.Beep(tone, duration);
-
-                System.Threading.Thread.Sleep(Math.Max(250, duration));
-            }
-        }
+        RunningAverage avgAirspeed = new RunningAverage(3);
+        RunningAverage avgVsi30 = new RunningAverage(60*2);
+        RunningAverage avgDT = new RunningAverage(10);
 
         TextFormat TextFormatCenter, TextFormatLeft, TextFormatRight, TextFormatRightSmall;
 
@@ -168,6 +158,8 @@ namespace BackFlip
             view = Matrix.LookAtLH(new Vector3(0, 0, -5), new Vector3(0, 0, 0), Vector3.UnitY);
 
             proj = Matrix.PerspectiveFovLH((float)Math.PI / 4.0f, demoConfiguration.Width / (float)demoConfiguration.Height, 0.1f, 100.0f);
+
+            varioBeeper.Start();
         }
 
         private void UpdateBaro()
@@ -195,6 +187,7 @@ namespace BackFlip
         static float mbOffset = 0f;
         static float alphaCal = 0f;
         static string sideCarApp;
+        static bool embeddedWindow;
 
 
         int altitude = 0;
@@ -232,7 +225,6 @@ namespace BackFlip
         private const int averagingSampleCount = (30*30); // typically we're around 30fps, and I want 30 second average.
         
 
-
         protected override void Draw(DemoTime time)
         {
             var now = DateTime.Now;
@@ -255,24 +247,20 @@ namespace BackFlip
             var attitude = adhrs.RawRead();
             if (attitude.Count() > 0)
             {
-                var nowT = DateTime.Now;
-                var dT = Math.Max(10,(float)(nowT - lastRead).TotalSeconds);
+                lastRead = now;
 
                 roll = attitude[ADHRS.Roll];
                 heading = (5 * ((int)attitude[ADHRS.Heading] / 5)).ToString();
                 //pitch = -10 * ahrsLine[ADHRS.Pitch]; 
-                CalculatePressureInstruments(attitude[ADHRS.IAS], attitude[ADHRS.Baro], dT);
-
-                lastRead = nowT;
+                CalculatePressureInstruments(attitude[ADHRS.IAS], attitude[ADHRS.Baro]);
             }
 
-            if ((DateTime.Now - lastRead).TotalSeconds > 1.2)
+            if ((now - lastRead).TotalSeconds > 1.2)
             {
                 RenderTarget2D.DrawLine(new Vector2(0, 0), new Vector2(ClientRectangle.Width, ClientRectangle.Height), errorBrush, 3.0f);
                 RenderTarget2D.DrawLine(new Vector2(ClientRectangle.Width, 0), new Vector2(0, ClientRectangle.Height), errorBrush, 3.0f);
             }
 
-            // Draw the cube
             context.Draw(36, 0);
 
             RenderTarget2D.DrawText(heading, TextFormatCenter, new RectangleF (0,0,ClientRectangle.Width,100), SceneColorBrush);
@@ -285,7 +273,6 @@ namespace BackFlip
 
             RenderTarget2D.DrawText(vsi, TextFormatRight,        new RectangleF(0, 10, ClientRectangle.Width - 15, 150), SceneColorBrush);
             RenderTarget2D.DrawText(vsi30, TextFormatRightSmall, new RectangleF(0, 10, ClientRectangle.Width, 50), SceneColorBrush);
-
         }
 
         /// <summary>
@@ -295,7 +282,13 @@ namespace BackFlip
         /// <param name="staticPress"></param>
         /// <param name="dT"></param>
 
-        private void CalculatePressureInstruments(float pitotPress, float staticPress, float dT)
+        DateTime lastVsiUpdate = DateTime.Now;
+
+        const float dtVsiUpdate = 0.2f;
+
+        TimedAverageDelta tdiVsi = new TimedAverageDelta((int)(30/dtVsiUpdate), TimeSpan.FromSeconds(30));
+
+        private void CalculatePressureInstruments(float pitotPress, float staticPress)
         {
             var speedMps = Math.Sqrt(dp_Coef * Math.Max(0, pitotPress - AIS_Baseline));
             var speedKts = speedMps * mps2kts;
@@ -303,53 +296,54 @@ namespace BackFlip
             // Compute the airspeed
             airspeed = ((int)(speedMps < 30d ? 0 : speedMps)).ToString();
 
-            var dV = (speedLast - speedMps) / dT;
-            var kinetticFactor = Math.Sign(dV) * dV * dV / 19.8d; // must be signed to work... lossing velocity needs to drop total energy
+            var baro2X = Math.Pow((double)((staticPress - mbOffset) / seaLevelMp), coefOfPressChange);
 
-            var baro2X = Math.Pow((staticPress - mbOffset) / seaLevelMp, coefOfPressChange);
-
-            // Altituded change from pressure difference derivation
-            // --- Given
-            // k = 44330
-            // x = 1 / 5.25
-            // p0 = 1013.25
-            // --- stubtracting two pressures equations yields;
-            // [k * (1 - (p2 / p0) ^ x)] - [k * (1 - (p1 / p0) ^ x)]
-            // -- Then
-            // k * [(1 - (p2 / p0) ^ x) - (1 - (p1 / p0) ^ x)]
-            // k * (1 - (p2 / p0) ^ x - 1 + (p1 / p0) ^ x)
-            // k * ((p1 / p0) ^ x - (p2 / p0) ^ x)  => p1^x / p0^x
-            // k * (p1 ^ x - p2 ^ x) / p0 ^ x
-            // --- QED
-            // k / p0 ^ x * (p1 ^ x - p2 ^ x), or
-            // 11862.610784520926279471081940874 * (p1 ^ x - p2 ^ x)
-            const double k_over_p02x = 11862.610784520926279471081940874;
-
-            // Convert the baro pressure then add the kinnetic energy factor to generate a total energy
-            verticalVelocity = (float)((k_over_p02x * (baro2X - baro2XLast) / dT) + kinetticFactor);
-
-            baroHist.Enqueue(verticalVelocity);
-            runningMeanVertVelocity += verticalVelocity;
-
-            if (baroHist.Count() > averagingSampleCount)
+            var now = DateTime.Now;
+            var dT = ((now - lastVsiUpdate).TotalMilliseconds)/1000.0d;
+            if (dT > dtVsiUpdate)
             {
-                meanVerticalVelocity = runningMeanVertVelocity / 256;
-                runningMeanVertVelocity -= baroHist.Dequeue();
+                lastVsiUpdate = now;
 
-                if (sampleTick++ > 1000)  // reset the runningMean periodically or float rounding errors will creap in
-                {
-                    runningMeanVertVelocity = baroHist.Sum(v => v);
-                    sampleTick = 0;
-                }
+                var avgASSav = avgAirspeed.Push((float)speedMps);
+                var dV = (speedLast - avgASSav) / dT;
+                var kinetticFactor = Math.Sign(dV) * dV * dV / 19.8d; // must be signed to work... lossing velocity needs to drop total energy
+
+
+                // Altituded change from pressure difference derivation
+                // --- Given
+                // k = 44330
+                // x = 1 / 5.25
+                // p0 = 1013.25
+                // --- stubtracting two pressures equations yields;
+                // [k * (1 - (p2 / p0) ^ x)] - [k * (1 - (p1 / p0) ^ x)]
+                // -- Then
+                // k * [(1 - (p2 / p0) ^ x) - (1 - (p1 / p0) ^ x)]
+                // k * (1 - (p2 / p0) ^ x - 1 + (p1 / p0) ^ x)
+                // k * ((p1 / p0) ^ x - (p2 / p0) ^ x)  => p1^x / p0^x
+                // k * (p1 ^ x - p2 ^ x) / p0 ^ x
+                // --- QED
+                // k / p0 ^ x * (p1 ^ x - p2 ^ x), or
+                // 11862.610784520926279471081940874 * (p1 ^ x - p2 ^ x)
+                const double k_over_p02x = 11862.610784520926279471081940874;
+
+                // Convert the baro pressure then add the kinnetic energy factor to generate a total energy
+                verticalVelocity = k_over_p02x * (baro2XLast - baro2X) / dT;
+
+                var vv30 = (int)(3.5d * k_over_p02x * tdiVsi.Push((float)baro2X, now) * mps2fpm);
+
+                var vsiT = (int)(3.5d * verticalVelocity * mps2fpm);
+
+                vsi = (50 * (int)Math.Round(vsiT/50d)).ToString();
+                vsi30 = "30s " + (20 * (int)Math.Round(vv30 / 20d)).ToString();
+
+                baro2XLast = baro2X;
+                speedLast = avgASSav;
             }
+
 
             altitude = (int)(/* meters=> 44330*/145439.6d * (1.0 - baro2X));
 
-            speedLast = speedMps;
-            baro2XLast = baro2X;
 
-            vsi = (10 * (int)(verticalVelocity * mps2fpm / 10f)).ToString();
-            vsi30 = " 30s" + (10 * (int)(meanVerticalVelocity * mps2fpm / 10f)).ToString();
         }
 
         protected override void MouseClick(MouseEventArgs e)
@@ -360,8 +354,10 @@ namespace BackFlip
             {
                 if (e.Y > ClientRectangle.Height - 120)
                     localBaro -= 1;
-                else
+                else if (e.Y > ClientRectangle.Height - 240)
                     localBaro += 1;
+                else if (e.Y < 120)
+                    varioBeeper.Mute = !varioBeeper.Mute;
 
                 UpdateBaro();
                 SaveConfig();
@@ -412,6 +408,7 @@ namespace BackFlip
             mbOffset = float.Parse(config["mbOffset"]);
             sideCarApp = config["sideCarApp"];
             alphaCal = float.Parse(config["alphaCal"]);
+            embeddedWindow = config.ContainsKey("EmbeddedWindow") && bool.Parse(config["EmbeddedWindow"]);
 
             Program program = new Program();
 
@@ -427,11 +424,12 @@ namespace BackFlip
                 var sideCarAppName = Path.GetFileNameWithoutExtension(sideCarApp.Split('/').Last());
 
                 var xcSoar = Process.GetProcessesByName(sideCarAppName);
+                var parts = sideCarApp.Split(' ');
+                var appName = parts.First(); 
 
-                if (xcSoar.Length == 0)
+                if (xcSoar.Length == 0 && File.Exists(appName))
                 {
-                    var parts = sideCarApp.Split(' ');
-                    Process.Start(parts.First(), string.Join(" ", parts.Skip(1)));
+                    Process.Start(appName, string.Join(" ", parts.Skip(1)));
                     System.Threading.Thread.Sleep(2000);
                 }
 
@@ -455,7 +453,7 @@ namespace BackFlip
             proc.StartInfo.Verb = "runas";
             proc.Start();
 
-            program.Run(new DemoConfiguration("BackFlip - PFD", midWidth, midHeight) { HideWindowFrames = true });
+            program.Run(new DemoConfiguration("BackFlip - PFD", midWidth, midHeight) { HideWindowFrames = embeddedWindow });
         }
     }
 }
