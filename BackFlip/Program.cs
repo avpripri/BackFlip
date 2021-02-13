@@ -213,13 +213,13 @@ namespace BackFlip
             if (e.X > Stock.ClientRectangle.Width*3/4)
             {
                 if (e.Y > Stock.ClientRectangle.Height - 120)
-                    Instruments.localBaro -= 1;
+                    instruments.UpdateBaro(-1);
                 else if (e.Y > Stock.ClientRectangle.Height - 240)
-                    Instruments.localBaro += 1;
+                    instruments.UpdateBaro(+1);
                 else if (e.Y < 120)
                     varioBeeper.Mute = !varioBeeper.Mute;
 
-                instruments.UpdateBaro();
+                
                 SaveConfig();
             }
 

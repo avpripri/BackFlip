@@ -74,15 +74,16 @@ namespace BackFlip
             renderer.DrawText(vsi30, Stock.TextFormatRightSmall, new RectangleF(0, 10, ClientRectangle.Width, 50), brush);
         }
 
-        public void UpdateBaro()
+        public void UpdateBaro(int deltaInchHg_100 = 0)
         {
+            localBaro += deltaInchHg_100;
             seaLevelMp = localBaro * 1017.25f / 2992f;
         }
 
         private void CalculateFromPressures(float pitotPress, float staticPress)
         {
-            var speedKts = Math.Sqrt(dp_Coef * Math.Max(0, pitotPress - AIS_Baseline));
-            var speedMps = speedKts / mps2kts;
+            var speedMps = Math.Sqrt(dp_Coef * Math.Max(0, pitotPress - AIS_Baseline));
+            var speedKts = speedMps * mps2kts;
 
             // Compute the airspeed
             airspeed = ((int)(speedKts < 30d ? 0 : speedKts)).ToString();
