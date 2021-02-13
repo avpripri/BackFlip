@@ -286,62 +286,85 @@ namespace BackFlip
 
         const float dtVsiUpdate = 0.2f;
 
-        TimedAverageDelta tdiVsi = new TimedAverageDelta((int)(30/dtVsiUpdate), TimeSpan.FromSeconds(30));
+        TimedAverageDelta tdiVsi = new TimedAverageDelta((int)(30*6/dtVsiUpdate), TimeSpan.FromSeconds(30));
+
+        SimpleKalmanFilter vsiFilter = new SimpleKalmanFilter()
+        {
+            Q = 0.000001, // this seems to really smooth it out nicely
+            R = 0.01
+        };
+
+        double totalEnergyLast = 0;
+        int displayUpdateCounter = 30;
 
         private void CalculatePressureInstruments(float pitotPress, float staticPress)
         {
-            var speedMps = Math.Sqrt(dp_Coef * Math.Max(0, pitotPress - AIS_Baseline));
-            var speedKts = speedMps * mps2kts;
+            var speedKts = Math.Sqrt(dp_Coef * Math.Max(0, pitotPress - AIS_Baseline));
+            var speedMps = speedKts / mps2kts;
 
             // Compute the airspeed
-            airspeed = ((int)(speedMps < 30d ? 0 : speedMps)).ToString();
+            airspeed = ((int)(speedKts < 30d ? 0 : speedKts)).ToString();
 
             var baro2X = Math.Pow((double)((staticPress - mbOffset) / seaLevelMp), coefOfPressChange);
 
             var now = DateTime.Now;
-            var dT = ((now - lastVsiUpdate).TotalMilliseconds)/1000.0d;
-            if (dT > dtVsiUpdate)
-            {
-                lastVsiUpdate = now;
+            var tDelta = now - lastVsiUpdate;
+            if (tDelta.Ticks == 0) 
+                    tDelta = new TimeSpan(200);
+            var dT = Math.Min(0.3d, Math.Max(-0.3d, tDelta.TotalMilliseconds/1000.0d));
+            lastVsiUpdate = now;
 
-                var avgASSav = avgAirspeed.Push((float)speedMps);
-                var dV = (speedLast - avgASSav) / dT;
-                var kinetticFactor = Math.Sign(dV) * dV * dV / 19.8d; // must be signed to work... lossing velocity needs to drop total energy
-
-
-                // Altituded change from pressure difference derivation
-                // --- Given
-                // k = 44330
-                // x = 1 / 5.25
-                // p0 = 1013.25
-                // --- stubtracting two pressures equations yields;
-                // [k * (1 - (p2 / p0) ^ x)] - [k * (1 - (p1 / p0) ^ x)]
-                // -- Then
-                // k * [(1 - (p2 / p0) ^ x) - (1 - (p1 / p0) ^ x)]
-                // k * (1 - (p2 / p0) ^ x - 1 + (p1 / p0) ^ x)
-                // k * ((p1 / p0) ^ x - (p2 / p0) ^ x)  => p1^x / p0^x
-                // k * (p1 ^ x - p2 ^ x) / p0 ^ x
-                // --- QED
-                // k / p0 ^ x * (p1 ^ x - p2 ^ x), or
-                // 11862.610784520926279471081940874 * (p1 ^ x - p2 ^ x)
-                const double k_over_p02x = 11862.610784520926279471081940874;
-
-                // Convert the baro pressure then add the kinnetic energy factor to generate a total energy
-                verticalVelocity = k_over_p02x * (baro2XLast - baro2X) / dT;
-
-                var vv30 = (int)(3.5d * k_over_p02x * tdiVsi.Push((float)baro2X, now) * mps2fpm);
-
-                var vsiT = (int)(3.5d * verticalVelocity * mps2fpm);
-
-                vsi = (50 * (int)Math.Round(vsiT/50d)).ToString();
-                vsi30 = "30s " + (20 * (int)Math.Round(vv30 / 20d)).ToString();
-
+            // initial state
+            if (baro2XLast == 0)
                 baro2XLast = baro2X;
-                speedLast = avgASSav;
+            if (speedLast == 0)
+                speedLast = speedMps;
+
+
+            var kinetticEnergy = speedMps * speedMps / 19.8d; // must be signed to work... lossing velocity needs to drop total energy
+            var potentialEnergy = 44330d * (1.0d - baro2X);
+
+            var totalEnergy = potentialEnergy + kinetticEnergy;
+            if (totalEnergyLast == 0)
+                totalEnergyLast = totalEnergy;
+
+            // Altituded change from pressure difference derivation
+            // --- Given
+            // k = 44330
+            // x = 1 / 5.25
+            // p0 = 1013.25
+            // --- stubtracting two pressures equations yields;
+            // [k * (1 - (p2 / p0) ^ x)] - [k * (1 - (p1 / p0) ^ x)]
+            // -- Then
+            // k * [(1 - (p2 / p0) ^ x) - (1 - (p1 / p0) ^ x)]
+            // k * (1 - (p2 / p0) ^ x - 1 + (p1 / p0) ^ x)
+            // k * ((p1 / p0) ^ x - (p2 / p0) ^ x)  => p1^x / p0^x
+            // k * (p1 ^ x - p2 ^ x) / p0 ^ x
+            // --- QED
+            // k / p0 ^ x * (p1 ^ x - p2 ^ x), or
+            // 11862.610784520926279471081940874 * (p1 ^ x - p2 ^ x)
+            const double k_over_p02x = 11862.610784520926279471081940874;
+
+            // Convert the baro pressure then add the kinnetic energy factor to generate a total energy
+            verticalVelocity = vsiFilter.Update(2d*(totalEnergy - totalEnergyLast) / dT);
+
+            var vv30 = (int)(3d * k_over_p02x * tdiVsi.Push((float)baro2X, now) * mps2fpm);
+            var vsiT = (int)(verticalVelocity * mps2fpm);
+
+            if (displayUpdateCounter-- == 0)
+            {
+                displayUpdateCounter = 10;
+                vsi = (20 * (int)Math.Round(vsiT / 20d)).ToString();
+                vsi30 = "30s " + (10 * (int)Math.Round(vv30 / 10d)).ToString();
+                altitude = (int)(/* meters=> 44330*/145439.6d * (1.0 - baro2X));
             }
 
 
-            altitude = (int)(/* meters=> 44330*/145439.6d * (1.0 - baro2X));
+
+            baro2XLast = baro2X;
+            speedLast = speedMps;
+            totalEnergyLast = totalEnergy;
+
 
 
         }
@@ -419,7 +442,7 @@ namespace BackFlip
             var midWidth = isLandscape ? 2 * screen.Width / 5 : screen.Width;
             var midHeight = isLandscape ? screen.Height : 2 * screen.Height / 5;
 
-            if (!String.IsNullOrEmpty(sideCarApp))
+            if (!String.IsNullOrEmpty(sideCarApp) && !sideCarApp.StartsWith("#"))
             {
                 var sideCarAppName = Path.GetFileNameWithoutExtension(sideCarApp.Split('/').Last());
 
@@ -451,7 +474,7 @@ namespace BackFlip
             proc.StartInfo.UseShellExecute = true;
             proc.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
             proc.StartInfo.Verb = "runas";
-            proc.Start();
+//            proc.Start();
 
             program.Run(new DemoConfiguration("BackFlip - PFD", midWidth, midHeight) { HideWindowFrames = embeddedWindow });
         }

@@ -304,8 +304,10 @@ void MPD_CalculateMotionData(void)
 	const float dp_Coef = 4.91744f;
 	const float AIS_Baseline = 2178;
 
+	auto mps = airspeed / 1.943844f;
+
 	// The IMU send the raw ADC value, we have to exproximate it by inverting the equation we use in the PFD
-	auto pitotSensorReadingEst = AIS_Baseline + airspeed * airspeed / dp_Coef;
+	auto pitotSensorReadingEst = AIS_Baseline + mps * mps / dp_Coef;
 
 	// Store the results in an array so that we can easily display it.
 
