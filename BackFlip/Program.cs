@@ -48,59 +48,50 @@ namespace BackFlip
         SharpDX.Direct3D11.Buffer contantBuffer;
         SharpDX.Direct3D11.DeviceContext context;
 
-        static double verticalVelocity = 0;
+        Instruments instruments = new Instruments();
 
         // beeper beepy beep
         VarioBeeping varioBeeper = new VarioBeeping()
         {
-            GetVerticalVelocityMPS = () => (float)Program.verticalVelocity,
+            GetVerticalVelocityMPS = ()=> (float)Instruments.totalEnergyVV,
             IsRunning = () => !SharpDX.Samples.DemoApp.IsFormClosed,
             Mute = true
         };
 
-        RunningAverage avgAirspeed = new RunningAverage(3);
-        RunningAverage avgVsi30 = new RunningAverage(60*2);
-        RunningAverage avgDT = new RunningAverage(10);
-
-        TextFormat TextFormatCenter, TextFormatLeft, TextFormatRight, TextFormatRightSmall;
-
-        public RectangleF ClientRectangle { get; private set; }
         protected override void Initialize(DemoConfiguration demoConfiguration)
         {
-
-
             base.Initialize(demoConfiguration);
 
             var config = File.ReadAllLines("config.txt").Select(l => l.Split('=')).ToDictionary(k => k[0], v => string.Join("=", v.Skip(1)));
-            localBaro = int.Parse(config["localBaro"]);
+            Instruments.localBaro = int.Parse(config["localBaro"]);
             comPort = config["comPort"];
             baudRate = int.Parse(config["baudRate"]);
-            mbOffset = float.Parse(config["mbOffset"]);
+            Instruments.mbOffset = float.Parse(config["mbOffset"]);
 
             // Zero, Zero
             _form.Top = _form.Left = 0;
 
-            UpdateBaro();
+            instruments.UpdateBaro();
 
             adhrs = new ADHRSXPlane(comPort, baudRate);
 
             // Initialize a TextFormat
-            TextFormatCenter = new TextFormat(FactoryDWrite, "Calibri", 64)
+            Stock.TextFormatCenter = new TextFormat(FactoryDWrite, "Calibri", 64)
             {
                 TextAlignment = TextAlignment.Center,
                 ParagraphAlignment = ParagraphAlignment.Center
             };
-            TextFormatLeft = new TextFormat(FactoryDWrite, "Calibri", 64)
+            Stock.TextFormatLeft = new TextFormat(FactoryDWrite, "Calibri", 64)
             {
                 TextAlignment = TextAlignment.Leading,
                 ParagraphAlignment = ParagraphAlignment.Center
             };
-            TextFormatRight = new TextFormat(FactoryDWrite, "Calibri", 64)
+            Stock.TextFormatRight = new TextFormat(FactoryDWrite, "Calibri", 64)
             {
                 TextAlignment = TextAlignment.Trailing,
                 ParagraphAlignment = ParagraphAlignment.Center
             };
-            TextFormatRightSmall = new TextFormat(FactoryDWrite, "Calibri", 48)
+            Stock.TextFormatRightSmall = new TextFormat(FactoryDWrite, "Calibri", 48)
             {
                 TextAlignment = TextAlignment.Trailing,
                 ParagraphAlignment = ParagraphAlignment.Center
@@ -108,10 +99,10 @@ namespace BackFlip
 
             RenderTarget2D.TextAntialiasMode = TextAntialiasMode.Cleartype;
 
-            ClientRectangle = new RectangleF(0, 0, demoConfiguration.Width, demoConfiguration.Height);
+            Stock.ClientRectangle = new RectangleF(0, 0, demoConfiguration.Width, demoConfiguration.Height);
 
-            SceneColorBrush.Color = Color.LightGray;
             baroColorBrush = new SolidColorBrush(RenderTarget2D, Color.DarkGray);
+            instrumentColorBrush = new SolidColorBrush(RenderTarget2D, Color.LightGray);
             errorBrush = new SolidColorBrush(RenderTarget2D, Color.Red);
 
 
@@ -162,83 +153,30 @@ namespace BackFlip
             varioBeeper.Start();
         }
 
-        private void UpdateBaro()
-        {
-            seaLevelMp = localBaro * 1017.25f / 2992f;
-        }
-
-        private void SaveConfig()
-        {
-            File.WriteAllLines("config.txt", 
-                new []{ 
-                    $"localBaro={localBaro}", 
-                    $"comPort={comPort}", 
-                    $"baudRate={baudRate}",
-                    $"alphaCal={alphaCal}",
-                    $"mbOffset={mbOffset}",
-                    $"sideCarApp={sideCarApp}",
-                });
-        }
-
-        static string comPort;
-        static int baudRate;
         static ADHRSXPlane adhrs;
-        string airspeed = "0";
-        static float mbOffset = 0f;
-        static float alphaCal = 0f;
-        static string sideCarApp;
-        static bool embeddedWindow;
-
-
-        int altitude = 0;
-        string vsi = "0";
-        string vsi30 = "30s 0";
-        string heading = "352";
-        static int localBaro = 3004;
-        float seaLevelMp; // stdPres = 1013.25f
-        float roll = 0f;
-        //float pitch = 0f;
-        float dp_Coef = 4.91744f; // <-- calibrate this, currently for m/s
-        float AIS_Baseline = 2178;
-        // House altitude 892.7 '
         SolidColorBrush baroColorBrush;
+        SolidColorBrush instrumentColorBrush;
         SolidColorBrush errorBrush;
         DateTime lastRead = DateTime.Now;
         DateTime lastFrame = DateTime.Now;
-        double speedLast;
-        double baro2XLast;
-        const double coefOfPressChange = 0.19029495718363463368220742150333d;  /* 1 / 5.25 */
 
-        Queue<float> baroHist = new Queue<float>();     // Used to calculate baro average
-        float runningMeanVertVelocity;
-        float meanVerticalVelocity;
-        int sampleTick = 0;
-
-        const int msPerFrame = (1000/40);
-
-        // Common unit conversion factors
-        // NOTE: All base calculations are SI units (m, m/s, mb).  When displayed, they are converted to pilot prefered units
-
-        const float mph2mps = 0.44704f;
-        const float mps2kts = 1.943844f;
-        const float mps2fpm = 196.85039370078738f;
-        private const int averagingSampleCount = (30*30); // typically we're around 30fps, and I want 30 second average.
-        
+        const int msPerFrame = (1000 / 40);
 
         protected override void Draw(DemoTime time)
         {
             var now = DateTime.Now;
+
             // Don't over-render, it costs CPU and that's energy
-            var delta = (int)(now-lastFrame).TotalMilliseconds;
+            var delta = (int)(now - lastFrame).TotalMilliseconds;
             if (delta < msPerFrame)
-                System.Threading.Thread.Sleep(msPerFrame-delta);
+                System.Threading.Thread.Sleep(msPerFrame - delta);
             lastFrame = now;
 
             base.Draw(time);
 
             // Update WorldViewProj Matrix
             var viewProj = Matrix.Multiply(view, proj);
-            var worldViewProj = Matrix.RotationZ(roll) * viewProj;
+            var worldViewProj = Matrix.RotationZ(instruments.roll) * viewProj;
 
             // Matrix.RotationX(time) * Matrix.RotationY(time * 2) * Matrix.RotationZ(time * .7f)
             worldViewProj.Transpose();
@@ -248,31 +186,18 @@ namespace BackFlip
             if (attitude.Count() > 0)
             {
                 lastRead = now;
-
-                roll = attitude[ADHRS.Roll];
-                heading = (5 * ((int)attitude[ADHRS.Heading] / 5)).ToString();
-                //pitch = -10 * ahrsLine[ADHRS.Pitch]; 
-                CalculatePressureInstruments(attitude[ADHRS.IAS], attitude[ADHRS.Baro]);
+                instruments.SetFromAhrs(attitude);
             }
 
             if ((now - lastRead).TotalSeconds > 1.2)
             {
-                RenderTarget2D.DrawLine(new Vector2(0, 0), new Vector2(ClientRectangle.Width, ClientRectangle.Height), errorBrush, 3.0f);
-                RenderTarget2D.DrawLine(new Vector2(ClientRectangle.Width, 0), new Vector2(0, ClientRectangle.Height), errorBrush, 3.0f);
+                RenderTarget2D.DrawLine(new Vector2(0, 0), new Vector2(Stock.ClientRectangle.Width, Stock.ClientRectangle.Height), errorBrush, 3.0f);
+                RenderTarget2D.DrawLine(new Vector2(Stock.ClientRectangle.Width, 0), new Vector2(0, Stock.ClientRectangle.Height), errorBrush, 3.0f);
             }
 
             context.Draw(36, 0);
 
-            RenderTarget2D.DrawText(heading, TextFormatCenter, new RectangleF (0,0,ClientRectangle.Width,100), SceneColorBrush);
-            RenderTarget2D.DrawText((altitude/100).ToString(), TextFormatRight, new RectangleF(0, 5, ClientRectangle.Width-50, ClientRectangle.Height), SceneColorBrush);
-            RenderTarget2D.DrawText((altitude%100).ToString().PadLeft(2, '0'), TextFormatRightSmall, ClientRectangle, SceneColorBrush);
-
-            RenderTarget2D.DrawText((localBaro/100f).ToString("0.00"), TextFormatRightSmall, new RectangleF(0, ClientRectangle.Height-200, ClientRectangle.Width, 200), baroColorBrush);
-
-            RenderTarget2D.DrawText(airspeed, TextFormatLeft, ClientRectangle, SceneColorBrush);
-
-            RenderTarget2D.DrawText(vsi, TextFormatRight,        new RectangleF(0, 10, ClientRectangle.Width - 15, 150), SceneColorBrush);
-            RenderTarget2D.DrawText(vsi30, TextFormatRightSmall, new RectangleF(0, 10, ClientRectangle.Width, 50), SceneColorBrush);
+            instruments.Draw(RenderTarget2D, instrumentColorBrush);
         }
 
         /// <summary>
@@ -281,108 +206,20 @@ namespace BackFlip
         /// <param name="pitotPress"></param>
         /// <param name="staticPress"></param>
         /// <param name="dT"></param>
-
-        DateTime lastVsiUpdate = DateTime.Now;
-
-        const float dtVsiUpdate = 0.2f;
-
-        TimedAverageDelta tdiVsi = new TimedAverageDelta((int)(30*6/dtVsiUpdate), TimeSpan.FromSeconds(30));
-
-        SimpleKalmanFilter vsiFilter = new SimpleKalmanFilter()
-        {
-            Q = 0.000001, // this seems to really smooth it out nicely
-            R = 0.01
-        };
-
-        double totalEnergyLast = 0;
-        int displayUpdateCounter = 30;
-
-        private void CalculatePressureInstruments(float pitotPress, float staticPress)
-        {
-            var speedKts = Math.Sqrt(dp_Coef * Math.Max(0, pitotPress - AIS_Baseline));
-            var speedMps = speedKts / mps2kts;
-
-            // Compute the airspeed
-            airspeed = ((int)(speedKts < 30d ? 0 : speedKts)).ToString();
-
-            var baro2X = Math.Pow((double)((staticPress - mbOffset) / seaLevelMp), coefOfPressChange);
-
-            var now = DateTime.Now;
-            var tDelta = now - lastVsiUpdate;
-            if (tDelta.Ticks == 0) 
-                    tDelta = new TimeSpan(200);
-            var dT = Math.Min(0.3d, Math.Max(-0.3d, tDelta.TotalMilliseconds/1000.0d));
-            lastVsiUpdate = now;
-
-            // initial state
-            if (baro2XLast == 0)
-                baro2XLast = baro2X;
-            if (speedLast == 0)
-                speedLast = speedMps;
-
-
-            var kinetticEnergy = speedMps * speedMps / 19.8d; // must be signed to work... lossing velocity needs to drop total energy
-            var potentialEnergy = 44330d * (1.0d - baro2X);
-
-            var totalEnergy = potentialEnergy + kinetticEnergy;
-            if (totalEnergyLast == 0)
-                totalEnergyLast = totalEnergy;
-
-            // Altituded change from pressure difference derivation
-            // --- Given
-            // k = 44330
-            // x = 1 / 5.25
-            // p0 = 1013.25
-            // --- stubtracting two pressures equations yields;
-            // [k * (1 - (p2 / p0) ^ x)] - [k * (1 - (p1 / p0) ^ x)]
-            // -- Then
-            // k * [(1 - (p2 / p0) ^ x) - (1 - (p1 / p0) ^ x)]
-            // k * (1 - (p2 / p0) ^ x - 1 + (p1 / p0) ^ x)
-            // k * ((p1 / p0) ^ x - (p2 / p0) ^ x)  => p1^x / p0^x
-            // k * (p1 ^ x - p2 ^ x) / p0 ^ x
-            // --- QED
-            // k / p0 ^ x * (p1 ^ x - p2 ^ x), or
-            // 11862.610784520926279471081940874 * (p1 ^ x - p2 ^ x)
-            const double k_over_p02x = 11862.610784520926279471081940874;
-
-            // Convert the baro pressure then add the kinnetic energy factor to generate a total energy
-            verticalVelocity = vsiFilter.Update(2d*(totalEnergy - totalEnergyLast) / dT);
-
-            var vv30 = (int)(3d * k_over_p02x * tdiVsi.Push((float)baro2X, now) * mps2fpm);
-            var vsiT = (int)(verticalVelocity * mps2fpm);
-
-            if (displayUpdateCounter-- == 0)
-            {
-                displayUpdateCounter = 10;
-                vsi = (20 * (int)Math.Round(vsiT / 20d)).ToString();
-                vsi30 = "30s " + (10 * (int)Math.Round(vv30 / 10d)).ToString();
-                altitude = (int)(/* meters=> 44330*/145439.6d * (1.0 - baro2X));
-            }
-
-
-
-            baro2XLast = baro2X;
-            speedLast = speedMps;
-            totalEnergyLast = totalEnergy;
-
-
-
-        }
-
         protected override void MouseClick(MouseEventArgs e)
         {
             base.MouseClick(e);
 
-            if (e.X > ClientRectangle.Width*3/4)
+            if (e.X > Stock.ClientRectangle.Width*3/4)
             {
-                if (e.Y > ClientRectangle.Height - 120)
-                    localBaro -= 1;
-                else if (e.Y > ClientRectangle.Height - 240)
-                    localBaro += 1;
+                if (e.Y > Stock.ClientRectangle.Height - 120)
+                    Instruments.localBaro -= 1;
+                else if (e.Y > Stock.ClientRectangle.Height - 240)
+                    Instruments.localBaro += 1;
                 else if (e.Y < 120)
                     varioBeeper.Mute = !varioBeeper.Mute;
 
-                UpdateBaro();
+                instruments.UpdateBaro();
                 SaveConfig();
             }
 
@@ -395,29 +232,57 @@ namespace BackFlip
             }
         }
 
-        private int Altitude(float pressure, float seaLevelMp)
-        {
-            return (int)(/* meters=> 44330*/ 145439.6f * (1.0 - Math.Pow(pressure / seaLevelMp, coefOfPressChange)));
-        }
-
         const string preziSetApp = @"C:\Windows\WinSxS\amd64_microsoft-windows-m..resentationsettings_31bf3856ad364e35_10.0.17763.1_none_5ded448f5b93896b\PresentationSettings.exe";
 
         protected override void EndRun()
         {
             base.EndRun();
+            PresentationMode(false);
+        }
 
-            //  This attempts to execute "PresenationSettings" to turn presentation mode on/off
-            // - WEIRDnESS NOTE: I trie refactoring this and it stopped workign (identical code running in a static method)
-            //  "Windows SxS" is a very very very odd little beast
+
+        static string sideCarApp;
+        static bool embeddedWindow;
+        static string comPort;
+        static int baudRate;
+        static bool enablePresentationMode;
+
+        //  This attempts to execute "PresenationSettings" to turn presentation mode on/off
+        //    In presentation mode the machine won't go to sleep after some period of inactivity.  This is really important!  
+        //    You dont want the machine to just go blank in 5 minutes.
+        // - WEIRDnESS NOTE: I trie refactoring this and it stopped workign (identical code running in a static method)
+        //  "Windows SxS" is a very very very odd little beast
+
+        private static void PresentationMode(bool turnOn)
+        {
+            if (!enablePresentationMode)
+                return;
+
+            var startStop = turnOn ? "start" : "stop";
+
             var proc = new Process();
             proc.StartInfo.FileName = "cmd.exe"; ;
-            proc.StartInfo.Arguments = $"/C \"{preziSetApp} /stop\"";
+            proc.StartInfo.Arguments = $"/C \"{preziSetApp} /{startStop}\"";
             proc.StartInfo.UseShellExecute = true;
             proc.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
             proc.StartInfo.Verb = "runas";
             proc.Start();
         }
 
+        private void SaveConfig()
+        {
+            File.WriteAllLines("config.txt",
+                new[]{
+                    $"localBaro={Instruments.localBaro}",
+                    $"comPort={comPort}",
+                    $"baudRate={baudRate}",
+                    $"alphaCal={Instruments.alphaCal}",
+                    $"mbOffset={Instruments.mbOffset}",
+                    $"sideCarApp={sideCarApp}",
+                    $"embeddedWindow={embeddedWindow}",
+                    $"enablePresentationMode={enablePresentationMode}",
+                });
+        }
         /// <summary>
         /// The main entry point for the application.
         /// </summary>
@@ -425,13 +290,12 @@ namespace BackFlip
         static void Main()
         {
             var config = File.ReadAllLines("config.txt").Select(l => l.Split('=').Select(v=>v.Trim())).ToDictionary(k => k.First(), v => string.Join("=", v.Skip(1)));
-            localBaro = int.Parse(config["localBaro"]);
             comPort = config["comPort"];
             baudRate = int.Parse(config["baudRate"]);
-            mbOffset = float.Parse(config["mbOffset"]);
             sideCarApp = config["sideCarApp"];
-            alphaCal = float.Parse(config["alphaCal"]);
-            embeddedWindow = config.ContainsKey("EmbeddedWindow") && bool.Parse(config["EmbeddedWindow"]);
+            embeddedWindow = config.ContainsKey("embeddedWindow") && bool.Parse(config["embeddedWindow"]);
+            enablePresentationMode = config.ContainsKey("enablePresentationMode") && bool.Parse(config["enablePresentationMode"]);
+            Instruments.Configure(config);
 
             Program program = new Program();
 
@@ -461,20 +325,7 @@ namespace BackFlip
                                                  isLandscape ? (screen.Width - midWidth + 12) : screen.Width, isLandscape ? screen.Height : (screen.Height - midHeight + 12)));
             }
 
-
-           
-            //  This attempts to execute "PresenationSettings" to turn presentation mode on/off
-            //    In presentation mode the machine won't go to sleep after some period of inactivity.  This is really important!  
-            //    You dont want the machine to just go blank in 5 minutes.
-            // - WEIRDnESS NOTE: I trie refactoring this and it stopped workign (identical code running in a static method)
-            //  "Windows SxS" is a very very very odd little beast
-            var proc = new Process();
-            proc.StartInfo.FileName = "cmd.exe"; ;
-            proc.StartInfo.Arguments = $"/C \"{preziSetApp} /start\"";
-            proc.StartInfo.UseShellExecute = true;
-            proc.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            proc.StartInfo.Verb = "runas";
-//            proc.Start();
+            PresentationMode(true);
 
             program.Run(new DemoConfiguration("BackFlip - PFD", midWidth, midHeight) { HideWindowFrames = embeddedWindow });
         }

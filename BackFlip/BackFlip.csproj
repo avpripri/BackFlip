@@ -70,11 +70,13 @@
     <Compile Include="ADHRSXPlane.cs" />
     <Compile Include="AsynchronousSocketListener.cs" />
     <Compile Include="Chevrons3.cs" />
+    <Compile Include="Instruments.cs" />
     <Compile Include="Kalman.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RepositionOthersWindows.cs" />
     <Compile Include="RunningAverage.cs" />
+    <Compile Include="Stock.cs" />
     <Compile Include="VarioBeeping.cs" />
   </ItemGroup>
   <ItemGroup>
