@@ -1,4 +1,4 @@
-defmodule ElixirOpengl do
+defmodule BackFlip do
   @behaviour :wx_object
   use Bitwise
 

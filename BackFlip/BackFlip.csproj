@@ -69,7 +69,8 @@
     <Compile Include="ADHRS.cs" />
     <Compile Include="ADHRSXPlane.cs" />
     <Compile Include="AsynchronousSocketListener.cs" />
-    <Compile Include="Chevrons3.cs" />
+    <Compile Include="ChevronAttitudeIndicator.cs" />
+    <Compile Include="IADHRS.cs" />
     <Compile Include="Instruments.cs" />
     <Compile Include="Kalman.cs" />
     <Compile Include="Program.cs" />

@@ -1,4 +1,4 @@
-defmodule ElixirOpengl.MixProject do
+defmodule BackFlip.MixProject do
   use Mix.Project
 
   def project do

@@ -33,6 +33,7 @@ using System.IO;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 
 namespace BackFlip
 {
@@ -58,12 +59,22 @@ namespace BackFlip
             Mute = true
         };
 
+        ChevronAttitudeIndicator attitudeIndicator = 
+            new ChevronAttitudeIndicator()
+                {
+                    Size = new Size2F(1f, 2f),
+                    alphaMax = 15,
+                    alphaTarget = 10f,
+                    alphaActual = 10f,
+                };
+
         protected override void Initialize(DemoConfiguration demoConfiguration)
         {
             base.Initialize(demoConfiguration);
 
             var config = File.ReadAllLines("config.txt").Select(l => l.Split('=')).ToDictionary(k => k[0], v => string.Join("=", v.Skip(1)));
             Instruments.localBaro = int.Parse(config["localBaro"]);
+            instruments.UpdateBaro();
             comPort = config["comPort"];
             baudRate = int.Parse(config["baudRate"]);
             Instruments.mbOffset = float.Parse(config["mbOffset"]);
@@ -71,9 +82,8 @@ namespace BackFlip
             // Zero, Zero
             _form.Top = _form.Left = 0;
 
-            instruments.UpdateBaro();
-
-            adhrs = new ADHRSXPlane(comPort, baudRate);
+            adhrs = xPlaneMode ? (IADHRS)new ADHRSXPlane(comPort, baudRate) : (IADHRS)new ADHRS(comPort, baudRate);
+            Task.Run(DataAquasition); // set it free!
 
             // Initialize a TextFormat
             Stock.TextFormatCenter = new TextFormat(FactoryDWrite, "Calibri", 64)
@@ -123,14 +133,14 @@ namespace BackFlip
                         new SharpDX.Direct3D11.InputElement("COLOR", 0, Format.R32G32B32A32_Float, 16, 0)
                     });
 
+
+
             // Instantiate Vertex buiffer from vertex data
-            var vertices = SharpDX.Direct3D11.Buffer.Create(Device, BindFlags.VertexBuffer, new BackFlip.Chevrons3()
-            {
-                Size = new Size2F(1f, 2f),
-                alphaMax = 15,
-                alphaTarget = 10f,
-                alphaActual = 10f,
-            }.Make());
+            var verticesChevron = SharpDX.Direct3D11.Buffer.Create(Device, BindFlags.VertexBuffer, attitudeIndicator.Chevrons());
+
+            //var verticesTarget = SharpDX.Direct3D11.Buffer.Create(Device, BindFlags.VertexBuffer, attitudeIndicator.TargetBar(instruments.alpha));
+
+            //var verticesDoF = SharpDX.Direct3D11.Buffer.Create(Device, BindFlags.VertexBuffer, attitudeIndicator.DirectionOfFlight(instruments.pitch));
 
             // Create Constant Buffer
             contantBuffer = new SharpDX.Direct3D11.Buffer(Device, Utilities.SizeOf<Matrix>(), ResourceUsage.Default, BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
@@ -140,7 +150,7 @@ namespace BackFlip
             // Prepare All the stages
             context.InputAssembler.InputLayout = layout;
             context.InputAssembler.PrimitiveTopology = SharpDX.Direct3D.PrimitiveTopology.TriangleList;
-            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(vertices, Utilities.SizeOf<Vector4>() * 2, 0));
+            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(verticesChevron, Utilities.SizeOf<Vector4>() * 2, 0));
             context.VertexShader.SetConstantBuffer(0, contantBuffer);
             context.VertexShader.Set(vertexShader);
             context.PixelShader.Set(pixelShader);
@@ -153,7 +163,21 @@ namespace BackFlip
             varioBeeper.Start();
         }
 
-        static ADHRSXPlane adhrs;
+        private ConcurrentDictionary<char, float> attitude = new ConcurrentDictionary<char, float>();
+        private bool done = false;
+
+        private void DataAquasition()
+        {
+            while (!done)
+            {
+                var rawValues = adhrs.RawRead();
+                foreach(var kvp in rawValues)
+                    attitude[kvp.Key] = kvp.Value;
+            }
+
+        }
+
+        static IADHRS adhrs;
         SolidColorBrush baroColorBrush;
         SolidColorBrush instrumentColorBrush;
         SolidColorBrush errorBrush;
@@ -176,13 +200,13 @@ namespace BackFlip
 
             // Update WorldViewProj Matrix
             var viewProj = Matrix.Multiply(view, proj);
-            var worldViewProj = Matrix.RotationZ(instruments.roll) * viewProj;
+            var worldViewProj = Matrix.Translation(new Vector3(0, (float)(instruments.pitch * 0.5 / Math.PI), 0)) * Matrix.RotationZ(instruments.roll) * viewProj;
 
             // Matrix.RotationX(time) * Matrix.RotationY(time * 2) * Matrix.RotationZ(time * .7f)
             worldViewProj.Transpose();
             context.UpdateSubresource(ref worldViewProj, contantBuffer);
 
-            var attitude = adhrs.RawRead();
+//            var attitude = adhrs.RawRead();
             if (attitude.Count() > 0)
             {
                 lastRead = now;
@@ -246,6 +270,7 @@ namespace BackFlip
         static string comPort;
         static int baudRate;
         static bool enablePresentationMode;
+        static bool xPlaneMode = false;
 
         //  This attempts to execute "PresenationSettings" to turn presentation mode on/off
         //    In presentation mode the machine won't go to sleep after some period of inactivity.  This is really important!  
@@ -293,6 +318,7 @@ namespace BackFlip
             comPort = config["comPort"];
             baudRate = int.Parse(config["baudRate"]);
             sideCarApp = config["sideCarApp"];
+            xPlaneMode = config.ContainsKey("xPlaneMode") && config["xPlaneMode"] == "1";
             embeddedWindow = config.ContainsKey("embeddedWindow") && bool.Parse(config["embeddedWindow"]);
             enablePresentationMode = config.ContainsKey("enablePresentationMode") && bool.Parse(config["enablePresentationMode"]);
             Instruments.Configure(config);

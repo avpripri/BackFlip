@@ -6,7 +6,7 @@ using System.Windows;
 
 namespace BackFlip
 {
-    public class Chevrons3
+    public class ChevronAttitudeIndicator
     {
         /// <summary>
         /// The boundary of the unrotated chevron control
@@ -35,7 +35,7 @@ namespace BackFlip
         static readonly Vector4 Yellow = new Vector4(1.0f, 1.0f, 0.0f, 1.0f);
         static readonly Vector4[] Colors = new [] { Blue, Green, Red, Yellow };
 
-        internal Vector4[] Make()
+        internal Vector4[] Chevrons()
         {
             var vanishingX = Size.Width * 3.0f;
 
@@ -43,12 +43,10 @@ namespace BackFlip
 
             var dyTarget = (float)((alphaMax - alphaTarget) * Size.Height / alphaMax);
             var m0 = dyTarget / (width_2 + vanishingX);
-            var m1 = (Size.Height - dyTarget) / (width_2/2 + vanishingX);
-
-            var dyAlpha = dyTarget - ((float)((alphaMax - alphaActual) * Size.Height / alphaMax));
+            var m1 = (Size.Height - dyTarget) / (width_2 / 2 + vanishingX);
 
             var dx = 0.1f; //  Size.Height / Size.Width / 2;
-            var z = -1.0f;
+            var z = 0f;
 
             var pts = new[] { 0f, dyTarget, Size.Height }.Select(y => new { y, mChev = (float)(dyTarget - y) / (float)(width_2 + vanishingX) })
                 .Select(pt => new ChevStruct { x0 = (float)(width_2 - (Size.Height - pt.y) * dx), y0 = pt.y - dyTarget, y1 = pt.y + (width_2 * pt.mChev) - dyTarget })
@@ -56,7 +54,7 @@ namespace BackFlip
 
             // Construct a simple array of all the verticies w/colors in the AoA chevrons (there are 8 total)
             var rightSides = Enumerable.Range(0, 3).SelectMany(i => new[] { new Vector4(pts[i].x0, pts[i].y0, z, 1f), Colors[i] });
-            var leftSides  = Enumerable.Range(0, 3).SelectMany(i => new[] { new Vector4(-pts[i].x0, pts[i].y0, z, 1f), Colors[i] });
+            var leftSides = Enumerable.Range(0, 3).SelectMany(i => new[] { new Vector4(-pts[i].x0, pts[i].y0, z, 1f), Colors[i] });
             var verticies = rightSides.Concat(leftSides)
                 .Concat(new[] {
                         new Vector4(0f, pts[0].y1,  z, 1f), Colors[0] ,  // Middles
@@ -72,31 +70,39 @@ namespace BackFlip
                 4,7,1,
             }.SelectMany(i => new[] { verticies[i * 2], verticies[i * 2 + 1] });
 
-            float dyBar = Size.Height/300f;
+            var dyPitch = dyTarget - ((float)((alphaMax - alphaActual) * Size.Height / alphaMax));
 
-            var targetBar = new[]
-            {
-                new Vector4(-pts[1].x0, pts[1].y0 + dyBar,  z-0.5f, 1f), Yellow ,  
-                new Vector4(+pts[1].x0, pts[1].y0 + dyBar,  z-0.5f, 1f), Yellow ,  
-                new Vector4(+pts[1].x0, pts[1].y0 - dyBar,  z-0.5f, 1f), Yellow ,
-
-                new Vector4(-pts[1].x0, pts[1].y0 + dyBar,  z-0.5f, 1f), Yellow ,
-                new Vector4(+pts[1].x0, pts[1].y0 - dyBar,  z-0.5f, 1f), Yellow ,
-                new Vector4(-pts[1].x0, pts[1].y0 - dyBar,  z-0.5f, 1f), Yellow ,
-            };
-
-            float dofSize = Size.Width / 5f;
-
-            var directionOfFlight = new[]
-            {
-                new Vector4(-dofSize,   dyAlpha,            z-0.9f, 1.0f), Blue ,
-                new Vector4(0,          dyAlpha + (dofSize/3),z-0.9f, 1.0f), Blue ,
-                new Vector4(+dofSize,   dyAlpha,            z-0.9f, 1.0f), Blue ,
-            };
-
-            return directionOfFlight.Concat(targetBar).Concat(chevrons).ToArray();
+            return chevrons.ToArray();
+            //DirectionOfFlight(dyPitch, Size.Width)
+            //    .Concat(TargetBar(pts[1], Size.Height))
+            //    .Concat(chevrons).ToArray();
         }
 
+        private static Vector4[] DirectionOfFlight(float dyPitch, float width)
+        {
+            float dofSize = width / 5f;
+            return new[]
+                        {
+                new Vector4(-dofSize,   dyPitch,            -0.9f, 1.0f), Blue ,
+                new Vector4(0,          dyPitch + (dofSize/3),-0.9f, 1.0f), Blue ,
+                new Vector4(+dofSize,   dyPitch,            -0.9f, 1.0f), Blue ,
+            };
+        }
+
+        private static Vector4[] TargetBar(ChevStruct ptTarget, float height)
+        {
+            var dyBar = height / 300f;
+            return new[]
+            {
+                new Vector4(-ptTarget.x0, ptTarget.y0 + dyBar,  -0.5f, 1f), Yellow ,
+                new Vector4(+ptTarget.x0, ptTarget.y0 + dyBar,  -0.5f, 1f), Yellow ,
+                new Vector4(+ptTarget.x0, ptTarget.y0 - dyBar,  -0.5f, 1f), Yellow ,
+
+                new Vector4(-ptTarget.x0, ptTarget.y0 + dyBar,  -0.5f, 1f), Yellow ,
+                new Vector4(+ptTarget.x0, ptTarget.y0 - dyBar,  -0.5f, 1f), Yellow ,
+                new Vector4(-ptTarget.x0, ptTarget.y0 - dyBar,  -0.5f, 1f), Yellow ,
+            };
+        }
 
         public static Vector4 HorizontalFlip(Vector4 vect)
         {

@@ -23,7 +23,7 @@ namespace BackFlip
         // Client socket.
         public Socket workSocket = null;
     }
-    public class ADHRSXPlane : IDisposable
+    public class ADHRSXPlane : IDisposable, IADHRS
     {
         //static SerialPort _serialPort = null;
 

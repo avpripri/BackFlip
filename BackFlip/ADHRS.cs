@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO.Ports;
 using System.Linq;
 using System.Text;
@@ -7,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace BackFlip
 {
-    public class ADHRS : IDisposable
+    public class ADHRS : IDisposable, IADHRS
     {
         static SerialPort _serialPort = null;
 
@@ -15,11 +16,36 @@ namespace BackFlip
         public string ComPort { get; set; }
         public int BaudRate { get; set; }
 
-        public ADHRS(string comPort, int baudRate = 9600)
+        public ADHRS(string comPort, int baudRate = 18200)
         {
             IsOpen = false;
-            ComPort = comPort; 
             BaudRate = baudRate;
+            ComPort = FindCommPort(comPort);
+        }
+
+        private bool CheckPort(string commPort)
+        {
+            using (var port = new SerialPort(commPort, BaudRate))
+            {
+                try
+                {
+                    port.Open();
+                    Debug.WriteLine($"Timeout = {port.ReadTimeout}");
+                    port.ReadTimeout = 500;
+                    var line = port.ReadLine();
+                    port.Close();
+                    return line.StartsWith("F:") && line.Split(',').Count() > 8;
+                }
+                catch (TimeoutException) { return false; }
+            }
+        }
+
+        private string FindCommPort(string portIn)
+        {
+            if (CheckPort(portIn))
+                return portIn;
+
+            return SerialPort.GetPortNames().FirstOrDefault(CheckPort);
         }
 
         private void OpenPort()
@@ -37,6 +63,7 @@ namespace BackFlip
             try
             {
                 _serialPort.Open();
+                _serialPort.ReadTimeout = -1;
                 IsOpen = _serialPort.IsOpen;
             }
             catch (System.IO.IOException) { }
@@ -60,11 +87,23 @@ namespace BackFlip
 
             try
             {
-                while (IsOpen && _serialPort.BytesToRead > 0)
+                while (IsOpen && _serialPort.ReadBufferSize > 0)
                 {
+                    StringBuilder sbT = new StringBuilder(128);
                     try
                     {
-                        var lin = _serialPort.ReadLine();
+                        var start = DateTime.Now;
+                        int chrT;
+                        do
+                        {
+                            chrT = _serialPort.ReadChar();
+                            sbT.Append((char)chrT);
+                        } while (chrT != '\r');
+                        sbT.Length = sbT.Length-1; // truncated the \r
+                        var lin = sbT.ToString();
+                        _serialPort.ReadChar(); // '\n'
+                        Debug.WriteLine((DateTime.Now - start).TotalMilliseconds);
+
                         var ahrsLine = lin.Split(',').Skip(1).Select(v => v.Split(':')).ToDictionary(k => k[0][0], v => float.Parse(v[1]));
 
                         if (ahrsLine.Count() >= 9)

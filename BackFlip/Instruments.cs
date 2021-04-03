@@ -8,7 +8,7 @@ namespace BackFlip
 {
     public class Instruments
     {
-        public static int localBaro = 3004;
+        public static int localBaro = 2992;
         public static float seaLevelMp; // stdPres = 1013.25f
         public static float mbOffset = 0f;
         public static double totalEnergyVV = 0; // total energy vertical velocity equivilent in m/s
@@ -147,7 +147,7 @@ namespace BackFlip
             totalEnergyLast = totalEnergy;
         }
 
-        public void SetFromAhrs(Dictionary<char, float> attitude)
+        public void SetFromAhrs(IDictionary<char, float> attitude)
         {
             roll = attitude[ADHRS.Roll];
             heading = (5 * ((int)attitude[ADHRS.Heading] / 5)).ToString();

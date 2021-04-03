@@ -16,4 +16,4 @@ from any shell/command;
 
 `` iex -S mix``
 
-iex(1)> ``GameCore.start_link()``
+iex(1)> ``BackFlip.start_link()``
