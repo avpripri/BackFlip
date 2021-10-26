@@ -4,7 +4,7 @@ Feature: Approach
   Scenario: Show approach assistant
     Given Approach assistant
     When I fly within 10nm of any airport
-        And I'm aligned with an runway of that airport
+        And I'm aligned with any runway of that airport
         And the runway is within +/- 20 of yaw
     Then The approach assistant for that runway should display
 
@@ -30,13 +30,11 @@ Feature: Approach
 
   Scenario: Go Around
     Given Approach assistant
-    When I fly "<OffSlopeConditions>"
-    Then I should see a go around indicator
-
-    Examples: OffSlopeConditions
+    When I fly 
       | TooHigh     |
       | TooLow      |
       | TooLeft     |
       | TooRight    |
       | TooFast     |
       | TooSlow     |
+    Then I should see a go around indicator      
