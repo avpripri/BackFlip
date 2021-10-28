@@ -28,7 +28,7 @@ Feature: Planning
     Given The flight planner
     When A destination is loaded
         And I have the weather
-        And weather is above VFR minimums
+        And weather for the entire flight is above VFR minimums
     Then Generate VFR flight plan
         And Load VFR flight plan
 
@@ -64,3 +64,19 @@ Feature: Planning
         And I have the weather
     Then Display weather briefing screen to PIC
         And confirm with PIC that weather meets personal minimums
+
+  Scenario: Smart VFR routing
+    Given The flight planner
+    When A VFR flight plan is beging generated
+        And I have up to date airspace data
+    Then Define a route which avoids
+        | Temporary Flight Restrictions |
+        | Terrain | 
+        | Restricted Airspaces | 
+        | Significant Weather | 
+        And Define a route which maximizes gliding distance to safe landing areas
+
+  Scenario: IFR routing
+    Given The flight planner
+    When An IFR flight plan is being generated
+    Then Define an IFR route using accepted IFR routing techniques
